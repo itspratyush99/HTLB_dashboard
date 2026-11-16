@@ -4,7 +4,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 
 **Built with:** Next.js · Supabase (database + login) · Vercel (hosting). All free tiers.
 
-> **Status: Phase 2.** Login, layout, Naukri file upload with duplicate checks, and Upload History are done. Next: Phase 3, the candidate table and bulk-sender export.
+> **Status: Phase 3.** Login, layout, Naukri upload with duplicate checks, Upload History, and the ZBM / HOS candidate tables with filters and the bulk-sender export are done. Next: Phase 4, moving candidates between stages, interviewers, and the Activity Log page.
 
 ---
 
@@ -26,7 +26,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 3. Click **Run** (bottom right). You should see **"Success. No rows returned."**
 4. To check: open **Table Editor** in the sidebar. You should see 9 tables, and `stages` should have 6 rows.
 
-> Then do the same with **`0002_uploads.sql`**: New query → paste → Run. Always run the files in number order.
+> Then do the same with **`0002_uploads.sql`** and **`0003_candidate_search.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
 >
 > Run each migration file **once only**. Running it twice gives "already exists" errors, which are harmless but not needed.
 
@@ -134,6 +134,40 @@ To stop the app, press `Ctrl + C` in the terminal. To start it again, run `npm r
 - [ ] Upload the **same file again**. The preview shows **62 duplicates skipped, 0 new**, and the Import button is greyed out.
 - [ ] Upload any other .xlsx or .csv (not from Naukri). It's rejected with "doesn't look like a Naukri candidate export" and nothing is saved.
 
+## Phase 3: updating and testing
+
+**Updating a live site that already has Phase 2:**
+1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0003_candidate_search.sql`, and click **Run**. You should see "Success". This file only adds search functions and changes no data.
+2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as always), then click **Commit changes**.
+3. Wait about 2 minutes for Vercel to redeploy, then reload.
+
+**What to test**
+- [ ] **ZBM** shows the table with "Showing 62 of 62 candidates".
+- [ ] Click a column header to sort, and click it again to reverse the order.
+- [ ] Type in the search box, e.g. part of a name, a phone number or a company.
+- [ ] **Filters**: tick a stage and set an experience range, then **Apply filters**. The chips appear, and **×** removes one.
+- [ ] **Columns**: hide and show columns. Your choice is remembered in this browser.
+- [ ] Tick the top checkbox, then **Select all 62 matching the filters**.
+- [ ] **Export for Bulk Sender** → **Download CSV**. Open the file in **Notepad** (not Excel). The first line should be `Name,Mobile Number,Source,Tags,booking_at`, and each row should look like `Name,91XXXXXXXXXX,ORGANIC,,`.
+- [ ] Upload that file to the bulk sender. It should be accepted.
+- [ ] After closing the dialog, the selection is still there.
+- [ ] Reload the page. Filters, sort and search stay as they were, because they're saved in the page address.
+
+## Bulk-sender export: the rules
+
+- **Columns, in this order:** `Name,Mobile Number,Source,Tags,booking_at`
+- **Name:** trimmed, and quoted only if it contains a comma.
+- **Mobile Number:** `91` plus the 10-digit mobile, digits only, e.g. `919962791460`.
+- **Source:** always `ORGANIC`. **booking_at:** always empty.
+- **Tags:** empty, or the candidate's stage, interviewer, or custom text, chosen in the dialog.
+- **File format:** UTF-8 with BOM, LF line endings, one newline after the last row.
+- **Skipped:** candidates without a valid mobile, and a second candidate with the same mobile. Both are listed after the download.
+- **File name:** `ROLE_Stage_DD-MMM-YYYY.csv`. "1:1 Aligned" becomes `1-1-Aligned`, and exports covering several stages are called `Mixed`.
+- **Every export is recorded** in the Activity Log: who, when, role, stage filter, count, and the exact candidates.
+- **Don't open and save the CSV in Excel before uploading it**, because Excel turns the mobile numbers into `9.19963E+11`. To look at it, use Notepad.
+
+`npm test` includes a byte-for-byte check against `samples/bulk_sender_sample.csv`: it rebuilds that file from its names and numbers and compares every byte.
+
 ## Daily upload: how it works
 
 1. Download the export from Naukri and drop it on the upload page. It's read **in your browser**, and nothing is saved until you click Import.
@@ -159,7 +193,7 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
 
 ## Automated tests (for developers)
 
-`npm test` runs 25 checks on the parser and duplicate rules. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
+`npm test` runs 40 checks: the parser, the duplicate rules, the filters and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
 
 ## How the data is protected
 
@@ -185,6 +219,9 @@ No data is lost.
 supabase/migrations/   SQL files: run in order in the SQL Editor (one new file per phase)
 src/lib/naukri/        Naukri file reading, cleaning rules, role detection, duplicate checks, import
 src/components/upload/ upload page: drop zone, preview, decisions
+src/components/candidates/ ZBM/HOS table, filter panel, columns, export dialog
+src/lib/export/        bulk-sender CSV builder (+ byte-for-byte test)
+src/lib/candidates/    filter definitions shared by the table and the database
 src/app/login/         login page
 src/app/(app)/         every logged-in page (zbm, hos, dashboard, analytics, uploads, activity, settings)
 src/components/        navigation, page header, ui/ (shadcn-style building blocks)

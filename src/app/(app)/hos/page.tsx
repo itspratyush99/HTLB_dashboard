@@ -1,7 +1,7 @@
-import { RoleTabPlaceholder } from "@/components/role-tab-placeholder";
+import { RolePage } from "@/components/candidates/role-page";
 
 export const metadata = { title: "HOS · Candidate Tracker" };
 
 export default function HosPage() {
-  return <RoleTabPlaceholder role="HOS" />;
+  return <RolePage role="HOS" />;
 }

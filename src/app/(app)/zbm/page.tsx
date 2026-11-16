@@ -1,7 +1,7 @@
-import { RoleTabPlaceholder } from "@/components/role-tab-placeholder";
+import { RolePage } from "@/components/candidates/role-page";
 
 export const metadata = { title: "ZBM · Candidate Tracker" };
 
 export default function ZbmPage() {
-  return <RoleTabPlaceholder role="ZBM" />;
+  return <RolePage role="ZBM" />;
 }

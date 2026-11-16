@@ -70,9 +70,20 @@ export default async function UploadDetailPage({
         title={upload.file_name}
         description={`Uploaded ${formatDateTime(upload.uploaded_at)} by ${upload.uploader?.full_name ?? "—"}`}
         actions={
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/uploads"><ArrowLeft /> Upload History</Link>
-          </Button>
+          <>
+            {(["ZBM", "HOS"] as const)
+              .filter((r) => (r === "ZBM" ? upload.zbm_rows : upload.hos_rows) > 0)
+              .map((r) => (
+                <Button key={r} asChild variant="outline" size="sm">
+                  <Link href={`/${r.toLowerCase()}?f=${encodeURIComponent(JSON.stringify({ upload_id: id }))}`}>
+                    Open in {r} tab
+                  </Link>
+                </Button>
+              ))}
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/uploads"><ArrowLeft /> Upload History</Link>
+            </Button>
+          </>
         }
       />
 
