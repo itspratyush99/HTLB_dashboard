@@ -4,7 +4,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 
 **Built with:** Next.js · Supabase (database + login) · Vercel (hosting). All free tiers.
 
-> **Status: Phase 4.** Login, Naukri upload, Upload History, the ZBM / HOS tables with filters and the bulk-sender export, stage moves, interviewers, candidate history and the Activity Log are done. Next: Phase 5, the Dashboard and Analytics.
+> **Status: Phase 5.** Everything except Settings editing is done: upload, tables, export, stage moves, interviewers, history, Activity Log, Dashboard and Analytics. Next: Phase 6, editable Settings and the final deployment guide.
 
 ---
 
@@ -26,7 +26,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 3. Click **Run** (bottom right). You should see **"Success. No rows returned."**
 4. To check: open **Table Editor** in the sidebar. You should see 9 tables, and `stages` should have 6 rows.
 
-> Then do the same with **`0002_uploads.sql`**, **`0003_candidate_search.sql`** and **`0004_moves_and_history.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
+> Then do the same with **`0002_uploads.sql`**, **`0003_candidate_search.sql`**, **`0004_moves_and_history.sql`** and **`0005_dashboard_analytics.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
 >
 > Run each migration file **once only**. Running it twice gives "already exists" errors, which are harmless but not needed.
 
@@ -169,6 +169,36 @@ To stop the app, press `Ctrl + C` in the terminal. To start it again, run `npm r
 - [ ] Click any **candidate name** to see all their details and their full **History**.
 - [ ] **Activity Log** shows every action, grouped: "Lakshay moved 35 candidates from FAQ Invited to 1:1 Aligned". Click **Show candidates** to see who. Try the User, Action, Role and date filters.
 
+## Phase 5: updating and testing
+
+**Updating a live site that already has Phase 4:**
+1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0005_dashboard_analytics.sql`, and click **Run**. You should see "Success". It adds read-only functions.
+2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder, then click **Commit changes**.
+3. Wait about 2 minutes for Vercel to redeploy.
+
+**What to test**
+- [ ] **Dashboard** shows ZBM and HOS side by side: total, new today, new this week, stuck, a count per stage, and 1:1 Aligned per interviewer. Every number is a link that opens those candidates.
+- [ ] **Analytics**: try **Both / ZBM / HOS**, the **7d / 14d / 30d / 90d** buttons, your own From and To dates, and one interviewer.
+- [ ] **Bottlenecks** lists problems in plain English, with a red warning icon.
+- [ ] **Stuck candidates → Open in ZBM tab** opens exactly those candidates. From there you can select all, export, or move them.
+- [ ] **Show as a table** under the daily charts shows the same numbers as a table.
+
+## How Analytics counts
+
+All days are India time (IST).
+- **Enters a stage:** a candidate enters Shortlisted when uploaded, and any other stage when moved into it.
+- **Funnel:** how many candidates entered each stage between From and To, and how many of them have since reached any later stage (skipping a stage counts). For example, Shortlisted → JD Cleared = 38% means 38% of the candidates who entered Shortlisted in the period have moved further.
+- **Compared with:** the same number of days just before your From date.
+- **Time in stage:** days from entering a stage to leaving it, for stays that started in the period. The median is the typical stay, while a few very long stays pull the average up.
+- **Stuck:** in the same stage for more than "max days in a stage" (default 3). The last stage (Webinar Invitation) doesn't count.
+- **Bottleneck alerts:**
+  - conversion below the minimum % (default 30%), only when at least 5 candidates entered the stage, since tiny numbers give silly percentages
+  - a median stay over the day limit
+  - any stuck group
+
+  Both limits will be editable in **Settings** in Phase 6.
+- **Interviewer filter:** limits everything to candidates who currently have that interviewer.
+
 ## Stage moves and interviewers: the rules
 
 - Candidates can be moved to **any** stage, forwards or backwards. The confirmation always says how many are moving, from where and to where.
@@ -217,7 +247,7 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
 
 ## Automated tests (for developers)
 
-`npm test` runs 43 checks: the parser, the duplicate rules, the filters, the history wording and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
+`npm test` runs 50 checks: the parser, the duplicate rules, the filters, the history wording, the bottleneck rules and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
 
 ## How the data is protected
 
@@ -245,6 +275,8 @@ src/lib/naukri/        Naukri file reading, cleaning rules, role detection, dupl
 src/components/upload/ upload page: drop zone, preview, decisions
 src/components/candidates/ ZBM/HOS table, filter panel, columns, export dialog, move dialogs, candidate panel
 src/components/activity/  Activity Log page
+src/components/analytics/ Analytics page (charts, funnel, time in stage, stuck list)
+src/lib/analytics/     plain-English bottleneck rules (+ tests)
 src/lib/export/        bulk-sender CSV builder (+ byte-for-byte test)
 src/lib/candidates/    filter definitions shared by the table and the database
 src/app/login/         login page
