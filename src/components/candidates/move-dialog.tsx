@@ -310,7 +310,7 @@ function InterviewerPicker({
           onClick={() => onChange("none")}
           className={cn(
             "rounded-full border-2 px-3 py-1 text-sm transition-colors",
-            value === "none" ? "border-slate-700 bg-slate-700 text-white" : "border-dashed text-muted-foreground hover:bg-accent",
+            value === "none" ? "border-foreground bg-foreground text-white" : "border-dashed text-muted-foreground hover:bg-accent",
           )}
         >
           No interviewer

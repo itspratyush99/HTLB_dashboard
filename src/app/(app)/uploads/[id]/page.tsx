@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RoleBadge } from "@/components/upload/upload-preview";
 import { UploadStatus } from "@/components/upload/upload-status";
 
-export const metadata = { title: "Upload details · Candidate Tracker" };
+export const metadata = { title: "Upload details" };
 
 const PAGE_SIZE = 100;
 
@@ -98,7 +98,7 @@ export default async function UploadDetailPage({
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
         {stats.map(([label, value, cls]) => (
-          <div key={label} className="rounded-lg border bg-card p-3">
+          <div key={label} className="glass rounded-2xl p-3">
             <div className="text-xs text-muted-foreground">{label}</div>
             <div className={`mt-1 text-xl font-semibold tabular-nums ${cls ?? ""}`}>{value}</div>
           </div>
@@ -115,7 +115,7 @@ export default async function UploadDetailPage({
         </TabsList>
 
         <TabsContent value="added">
-          <div className="rounded-lg border bg-card">
+          <div className="glass overflow-hidden rounded-2xl">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -220,9 +220,9 @@ export default async function UploadDetailPage({
 }
 
 function SimpleTable({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
-  if (!rows.length) return <div className="rounded-lg border border-dashed bg-card p-6 text-sm text-muted-foreground">{empty}</div>;
+  if (!rows.length) return <div className="glass rounded-2xl border-dashed p-6 text-sm text-muted-foreground">{empty}</div>;
   return (
-    <div className="rounded-lg border bg-card">
+    <div className="glass overflow-hidden rounded-2xl">
       <Table>
         <TableHeader>
           <TableRow>{head.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow>

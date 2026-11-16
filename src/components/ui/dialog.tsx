@@ -10,7 +10,7 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 
 function Overlay() {
-  return <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-900/40 data-[state=open]:animate-in data-[state=open]:fade-in-0" />;
+  return <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/20 backdrop-blur-md data-[state=open]:animate-in data-[state=open]:fade-in-0" />;
 }
 
 /** Centered dialog. */
@@ -20,7 +20,7 @@ export function DialogContent({ className, children, ...props }: React.Component
       <Overlay />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "glass glass-strong fixed left-1/2 top-1/2 z-50 flex max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-3xl p-5 shadow-2xl sm:p-6 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -42,7 +42,7 @@ export function SheetContent({ className, children, ...props }: React.ComponentP
       <Overlay />
       <DialogPrimitive.Content
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l bg-card shadow-xl data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
+          "glass glass-strong fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col shadow-2xl sm:inset-y-2 sm:right-2 sm:rounded-3xl data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
           className,
         )}
         {...props}

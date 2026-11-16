@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/dates";
 import type { Interviewer, Stage } from "@/lib/candidates/types";
+import { ROLE_COLORS } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,7 @@ export function ActivityFeed({ users, stages, interviewers }: { users: { id: str
   return (
     <div className="flex flex-col gap-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-3">
+      <div className="glass flex flex-wrap items-end gap-3 rounded-2xl p-3">
         <Select label="User" value={filters.user_id ?? ""} onChange={(v) => set("user_id", v)} options={users.map((u) => [u.id, u.full_name])} />
         <Select label="Action" value={filters.action ?? ""} onChange={(v) => set("action", v as Action)} options={ACTIONS} />
         <Select label="Role" value={filters.role ?? ""} onChange={(v) => set("role", v as "ZBM" | "HOS")} options={[["ZBM", "ZBM"], ["HOS", "HOS"]]} />
@@ -103,7 +104,7 @@ export function ActivityFeed({ users, stages, interviewers }: { users: { id: str
       </div>
 
       {/* Entries */}
-      <div className="divide-y rounded-lg border bg-card">
+      <div className="glass divide-y divide-black/[0.06] overflow-hidden rounded-2xl">
         {rows.map((g) => (
           <Entry key={`${g.gkey}:${g.action}`} g={g} onOpenCandidate={setDrawerId} />
         ))}
@@ -124,7 +125,7 @@ function Select({ label, value, onChange, options }: { label: string; value: str
   return (
     <label className="flex flex-col gap-1 text-xs font-medium">
       {label}
-      <select className="h-8 min-w-36 rounded-md border bg-card px-2 text-sm font-normal" value={value} onChange={(e) => onChange(e.target.value)}>
+      <select className="h-9 min-w-36 rounded-lg border border-black/10 bg-white/80 px-2 text-sm font-normal" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">All</option>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
@@ -194,14 +195,14 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
   return (
     <div className="px-4 py-3">
       <div className="flex items-start gap-3">
-        <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border", g.action === "export" && "border-emerald-300 text-emerald-600", g.action === "stage_change" && "border-indigo-300 text-indigo-600")}>
+        <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border", g.action === "export" && "border-emerald-300 text-emerald-600", g.action === "stage_change" && "border-primary/30 text-primary")}>
           <Icon className="size-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm">{text}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {formatDateTime(g.at)}
-            {g.role && <Badge color={g.role === "ZBM" ? "#4f46e5" : "#0f766e"}>{g.role}</Badge>}
+            {g.role && <Badge color={ROLE_COLORS[g.role]}>{g.role}</Badge>}
             {expandable && (
               <button className="inline-flex items-center gap-0.5 text-primary hover:underline" onClick={() => setOpen((o) => !o)}>
                 {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}

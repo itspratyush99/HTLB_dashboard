@@ -1,228 +1,198 @@
-# Candidate Tracker
+<p align="center"><img src="public/brand/htlb-logo.png" alt="HTLB Systems" width="140"></p>
 
-Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage tracking, bulk-sender exports and analytics.
+# HTLB Candidate Tracker
 
-**Built with:** Next.js · Supabase (database + login) · Vercel (hosting). All free tiers.
+The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business Managers (ZBM)** and **Heads of States (HOS)** from Naukri.
 
-> **Status: Phase 5.** Everything except Settings editing is done: upload, tables, export, stage moves, interviewers, history, Activity Log, Dashboard and Analytics. Next: Phase 6, editable Settings and the final deployment guide.
+**Live:** https://htlb-dashboard.vercel.app
+
+**What the team does with it:**
+- Upload the daily Naukri export. Duplicates are caught automatically.
+- Track every candidate through the hiring stages.
+- Filter on any column, and export straight into the bulk message sender's format.
+- Move candidates to their next stage in bulk, with interviewers assigned at 1:1 Aligned.
+- See a full history of every candidate and every action.
+- Watch progress and bottlenecks on the Dashboard and in Analytics.
+
+**Built with free tools:** Next.js, Supabase (database and login) and Vercel (hosting). It works on laptops and phones.
 
 ---
 
-## Phase 1 setup (about 20 minutes, no coding needed)
+## Contents
+1. [First-time setup](#1-first-time-setup-about-30-minutes-no-coding)
+2. [Going live on Vercel](#2-going-live-on-vercel)
+3. [Updating the live site](#3-updating-the-live-site)
+4. [Environment variables](#4-environment-variables)
+5. [Team users: adding, removing, passwords](#5-team-users)
+6. [The daily routine](#6-the-daily-routine)
+7. [Rules reference](#7-rules-reference)
+8. [Using it on a phone](#8-using-it-on-a-phone)
+9. [Supabase free tier: pausing](#9-supabase-free-tier-pausing)
+10. [How the data is protected](#10-how-the-data-is-protected)
+11. [Troubleshooting](#11-troubleshooting)
+12. [For developers](#12-for-developers)
 
-### Step 1: Create the Supabase project
+---
 
+## 1. First-time setup (about 30 minutes, no coding)
+
+### 1.1 Create the Supabase project
 1. Go to **https://supabase.com** and sign up (or log in with GitHub or Google).
 2. Click **New project**.
-   - **Name:** `candidate-tracker`
+   - **Name:** `htlb-candidate-tracker`
    - **Database password:** click *Generate*, then save it in your password manager.
-   - **Region:** **South Asia (Mumbai)**, which is fastest for India.
-3. Click **Create new project** and wait 1–2 minutes until it's ready.
+   - **Region:** **South Asia (Mumbai)**.
+3. Click **Create new project** and wait 1–2 minutes.
 
-### Step 2: Create the database tables
+### 1.2 Create the database (6 SQL files, in order)
+The files are in `supabase/migrations/`. For **each file, in this order**:
+1. Open **SQL Editor → New query**.
+2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
+3. Click **Run** and wait for **"Success. No rows returned."**
 
-1. In the left sidebar, open **SQL Editor** and click **New query**.
-2. Open the file `supabase/migrations/0001_init.sql` from this project in Notepad or TextEdit. Select all, copy, and paste it into the editor.
-3. Click **Run** (bottom right). You should see **"Success. No rows returned."**
-4. To check: open **Table Editor** in the sidebar. You should see 9 tables, and `stages` should have 6 rows.
+| # | File | What it adds |
+|---|---|---|
+| 1 | `0001_init.sql` | Tables, security rules, the 6 stages, interviewers Pratyush / Parul / Umer, role keywords, limits |
+| 2 | `0002_uploads.sql` | Upload support and duplicate lookups |
+| 3 | `0003_candidate_search.sql` | Table search, filters, sorting, export |
+| 4 | `0004_moves_and_history.sql` | Stage moves, interviewers, history, Activity Log |
+| 5 | `0005_dashboard_analytics.sql` | Dashboard and Analytics |
+| 6 | `0006_settings.sql` | Editable Settings and team-user safety rules |
 
-> Then do the same with **`0002_uploads.sql`**, **`0003_candidate_search.sql`**, **`0004_moves_and_history.sql`** and **`0005_dashboard_analytics.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
+> Supabase may warn about **"destructive operations"** on files 2, 4 and 6. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
-> Run each migration file **once only**. Running it twice gives "already exists" errors, which are harmless but not needed.
+> Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
-### Step 3: Make the panel invite-only
+### 1.3 Make it invite-only
+Go to **Authentication → Sign In / Providers**, turn **OFF** "Allow new users to sign up", and click **Save**.
 
-1. Go to **Authentication → Sign In / Providers** (on older dashboards: *Authentication → Providers*).
-2. Turn **OFF** "Allow new users to sign up", then click **Save**.
-   From now on, only people you add yourself can log in.
-
-### Step 4: Add yourself (you become admin)
-
+### 1.4 Add yourself (you become admin)
 1. Go to **Authentication → Users → Add user → Create new user**.
 2. Enter your email and a strong password, tick **Auto Confirm User**, and click **Create user**.
-   **The first user ever added becomes the admin automatically.**
-3. Set your display name. In **SQL Editor**, run (with your own email and name):
+   **The first user ever added becomes admin automatically.**
+3. Set your display name, either later in the app under **Settings → Team users**, or now in **SQL Editor**:
    ```sql
-   update profiles set full_name = 'Lakshay' where email = 'you@example.com';
+   update profiles set full_name = 'Your Name' where email = 'you@example.com';
    ```
 
-**Adding a team member** follows the same steps 1–3, with their email and name. Send them their password privately, and they appear in Settings → Team users. A simpler "add user" screen inside the app comes in Phase 6.
-
-**Removing access without losing their history:**
-```sql
-update profiles set is_active = false where email = 'person@example.com';
-```
-
-### Step 5: Get your two API values
-
+### 1.5 Copy three values
 Go to **Project Settings → API** (or *API Keys*) and copy:
-- **Project URL**, e.g. `https://abcdxyz.supabase.co`
-- **anon / public key** (on newer dashboards this is the *Publishable key*, starting `sb_publishable_`)
 
-> Never use the **service_role / secret** key here. It bypasses all security.
-
-### Step 6: Make it live (GitHub + Vercel)
-
-**A. Put the code on GitHub (private)**
-1. On **github.com**, click **+ → New repository**. Name it `candidate-tracker`, choose **Private**, and click **Create repository**.
-2. Click the **"uploading an existing file"** link. Drag in **everything inside** this folder (not the folder itself), then click **Commit changes**.
-   **Never upload:** `node_modules`, `.next`, `.env.local` or the sample files in `samples/`.
-   On a Mac, press **Cmd + Shift + .** in Finder to show hidden files like `.gitignore`.
-
-**B. Deploy on Vercel**
-1. On **vercel.com**, choose **Continue with GitHub**, then **Add New… → Project → Import** `candidate-tracker`.
-2. Under **Environment Variables**, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (from Step 5).
-3. Click **Deploy**. After about 2 minutes you get your live link, e.g. `candidate-tracker-abc.vercel.app`.
-
-**C. Point Supabase at the live link**
-In Supabase, go to **Authentication → URL Configuration**. Set **Site URL** to your Vercel link and click **Save**.
-
-> Vercel's free (Hobby) plan is for non-commercial use only. Business use needs Vercel Pro (US$20/month).
-
-**Updating later:**
-1. Run any new SQL file in Supabase **first**.
-2. In GitHub, click **Add file → Upload files**, drag in the new code, and click **Commit changes**.
-3. Vercel redeploys automatically.
-
-If you change an environment variable, redeploy from **Vercel → Deployments → ⋯ → Redeploy**.
-
-### Optional: run the app on your computer
-
-1. Install **Node.js LTS** from **https://nodejs.org** (the big green button). Restart your computer afterwards.
-2. Unzip this project into a folder, e.g. `Documents/candidate-tracker`.
-3. In that folder, make a copy of `.env.example` and name the copy `.env.local`. Open it and paste in your two values:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://abcdxyz.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
-   ```
-4. Open a terminal in the folder:
-   - **Windows:** open the folder in File Explorer, click the address bar, type `cmd`, press Enter.
-   - **Mac:** right-click the folder → *New Terminal at Folder*.
-5. Run these two commands (the first takes a few minutes, but only the first time):
-   ```
-   npm install
-   npm run dev
-   ```
-6. Open **http://localhost:3000** in your browser and log in.
-
-To stop the app, press `Ctrl + C` in the terminal. To start it again, run `npm run dev`.
-
-### What to test in Phase 1
-
-- [ ] Going to http://localhost:3000 sends you to the login page.
-- [ ] A wrong password shows a red "Wrong email or password." message.
-- [ ] After logging in, all 7 tabs appear: ZBM | HOS | Dashboard | Analytics | Upload History | Activity Log | Settings.
-- [ ] ZBM and HOS show the 6 coloured stage badges, each with a count of 0.
-- [ ] **Settings** shows the stages, the interviewers (Pratyush, Parul, Umer), the role keywords, the thresholds (3 days, 30%) and you marked as **Admin**.
-- [ ] Your name menu (top right) has **Log out**, which works.
-- [ ] Opening http://localhost:3000/settings in a private/incognito window sends you to login.
+| Value | Where it goes | Secret? |
+|---|---|---|
+| **Project URL** | `NEXT_PUBLIC_SUPABASE_URL` | No |
+| **anon / publishable key** | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | No: it can't read anything without a login |
+| **service_role / secret key** | `SUPABASE_SERVICE_ROLE_KEY` | **Yes.** Only ever paste it into Vercel. Never share it, put it in a file, or send it in chat. |
 
 ---
 
-## Phase 2: updating and testing
+## 2. Going live on Vercel
 
-**Updating a live site that already has Phase 1:**
-1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0002_uploads.sql`, and click **Run**. You should see "Success".
-2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (not `node_modules`, `.next`, `.env.local` or the sample files), then click **Commit changes**.
-3. Wait about 2 minutes for Vercel to redeploy, then reload the site.
+### 2.1 Put the code on GitHub (private)
+1. On **github.com**, click **+ → New repository**. Name it `htlb-dashboard`, choose **Private**, and click **Create repository**.
+2. Click **"uploading an existing file"**. Drag in **everything inside** the project folder, then click **Commit changes**.
 
-**What to test**
-- [ ] **Upload History → Upload Naukri file**, or the button on the ZBM / HOS tabs, opens the upload page.
-- [ ] Drop `naukri_sample.xlsx`. The preview should show **62 total rows, 62 ZBM, 62 new**, 0 errors and 0 warnings.
-- [ ] Click **Import 62 candidates**. A green message appears, and ZBM shows **Shortlisted: 62**.
-- [ ] **Upload History** has one row. Click it to see the 62 candidates. **View** opens a Naukri profile.
-- [ ] Upload the **same file again**. The preview shows **62 duplicates skipped, 0 new**, and the Import button is greyed out.
-- [ ] Upload any other .xlsx or .csv (not from Naukri). It's rejected with "doesn't look like a Naukri candidate export" and nothing is saved.
+**Never upload these:**
+- `node_modules`
+- `.next`
+- `.env.local`
+- the sample files in `samples/`, which contain real candidates' data
 
-## Phase 3: updating and testing
+On a Mac, press **Cmd + Shift + .** in Finder to show hidden files such as `.gitignore`, so they're uploaded too.
 
-**Updating a live site that already has Phase 2:**
-1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0003_candidate_search.sql`, and click **Run**. You should see "Success". This file only adds search functions and changes no data.
-2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as always), then click **Commit changes**.
-3. Wait about 2 minutes for Vercel to redeploy, then reload.
+### 2.2 Deploy
+1. On **vercel.com**, choose **Continue with GitHub**, then **Add New… → Project → Import** your repository.
+2. Under **Environment Variables**, add all three values from 1.5 (see [section 4](#4-environment-variables)).
+3. Click **Deploy**. After about 2 minutes the panel is live, e.g. `htlb-dashboard.vercel.app`.
 
-**What to test**
-- [ ] **ZBM** shows the table with "Showing 62 of 62 candidates".
-- [ ] Click a column header to sort, and click it again to reverse the order.
-- [ ] Type in the search box, e.g. part of a name, a phone number or a company.
-- [ ] **Filters**: tick a stage and set an experience range, then **Apply filters**. The chips appear, and **×** removes one.
-- [ ] **Columns**: hide and show columns. Your choice is remembered in this browser.
-- [ ] Tick the top checkbox, then **Select all 62 matching the filters**.
-- [ ] **Export for Bulk Sender** → **Download CSV**. Open the file in **Notepad** (not Excel). The first line should be `Name,Mobile Number,Source,Tags,booking_at`, and each row should look like `Name,91XXXXXXXXXX,ORGANIC,,`.
-- [ ] Upload that file to the bulk sender. It should be accepted.
-- [ ] After closing the dialog, the selection is still there.
-- [ ] Reload the page. Filters, sort and search stay as they were, because they're saved in the page address.
+### 2.3 Tell Supabase the live address
+In Supabase, go to **Authentication → URL Configuration**, set **Site URL** to your Vercel address (e.g. `https://htlb-dashboard.vercel.app`), and click **Save**.
 
-## Phase 4: updating and testing
+> **Vercel plan:** the free **Hobby** plan is for **non-commercial use only**. An internal company tool counts as business use, so HTLB should move the project to **Vercel Pro** (US$20/month). Nothing in the setup changes when you upgrade.
 
-**Updating a live site that already has Phase 3:**
-1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0004_moves_and_history.sql`, and click **Run**. You should see "Success". It adds functions only and changes no data.
-2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder, then click **Commit changes**.
-3. Wait about 2 minutes for Vercel to redeploy.
+---
 
-**What to test (the daily routine)**
-- [ ] In ZBM, open **Filters**, tick **Shortlisted**, then **Apply filters**. Tick the top checkbox, then **Select all … matching**.
-- [ ] Click **Export for Bulk Sender → Download CSV**. Then click **Move these … exported candidates to stage…**, choose **JD and Assessment Test Cleared**, then **Continue → Yes, move**.
-- [ ] The table empties, because the candidates have left Shortlisted. Filter by the new stage and they're there.
-- [ ] Select a few, click **Move to stage… → 1:1 Aligned**. **Continue** stays greyed out until you pick an interviewer. Pick one, then confirm.
-- [ ] The **Interviewer** column shows coloured badges. Select two, click **Interviewer…**, and pick another name.
-- [ ] Click any **candidate name** to see all their details and their full **History**.
-- [ ] **Activity Log** shows every action, grouped: "Lakshay moved 35 candidates from FAQ Invited to 1:1 Aligned". Click **Show candidates** to see who. Try the User, Action, Role and date filters.
+## 3. Updating the live site
 
-## Phase 5: updating and testing
+Whenever you receive a new version:
+1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
+2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
+3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
 
-**Updating a live site that already has Phase 4:**
-1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0005_dashboard_analytics.sql`, and click **Run**. You should see "Success". It adds read-only functions.
-2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder, then click **Commit changes**.
-3. Wait about 2 minutes for Vercel to redeploy.
+### Upgrading from Phase 5 to this final version
+1. Run **`0006_settings.sql`** in the SQL Editor.
+2. In **Vercel → Project → Settings → Environment Variables**, add **`SUPABASE_SERVICE_ROLE_KEY`** (the secret key from 1.5). Tick all environments and click **Save**.
+3. Upload the new files to GitHub and click **Commit changes**. This also triggers the redeploy that picks up the new variable.
 
-**What to test**
-- [ ] **Dashboard** shows ZBM and HOS side by side: total, new today, new this week, stuck, a count per stage, and 1:1 Aligned per interviewer. Every number is a link that opens those candidates.
-- [ ] **Analytics**: try **Both / ZBM / HOS**, the **7d / 14d / 30d / 90d** buttons, your own From and To dates, and one interviewer.
-- [ ] **Bottlenecks** lists problems in plain English, with a red warning icon.
-- [ ] **Stuck candidates → Open in ZBM tab** opens exactly those candidates. From there you can select all, export, or move them.
-- [ ] **Show as a table** under the daily charts shows the same numbers as a table.
+If you only change an environment variable, redeploy from **Vercel → Deployments → ⋯ → Redeploy**.
 
-## How Analytics counts
+---
 
-All days are India time (IST).
-- **Enters a stage:** a candidate enters Shortlisted when uploaded, and any other stage when moved into it.
-- **Funnel:** how many candidates entered each stage between From and To, and how many of them have since reached any later stage (skipping a stage counts). For example, Shortlisted → JD Cleared = 38% means 38% of the candidates who entered Shortlisted in the period have moved further.
-- **Compared with:** the same number of days just before your From date.
-- **Time in stage:** days from entering a stage to leaving it, for stays that started in the period. The median is the typical stay, while a few very long stays pull the average up.
-- **Stuck:** in the same stage for more than "max days in a stage" (default 3). The last stage (Webinar Invitation) doesn't count.
-- **Bottleneck alerts:**
-  - conversion below the minimum % (default 30%), only when at least 5 candidates entered the stage, since tiny numbers give silly percentages
-  - a median stay over the day limit
-  - any stuck group
+## 4. Environment variables
 
-  Both limits will be editable in **Settings** in Phase 6.
-- **Interviewer filter:** limits everything to candidates who currently have that interviewer.
+| Name | Required | Value | Used for |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Project URL, e.g. `https://abcd.supabase.co` | Connecting to the database |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | anon / publishable key | Login. Data still needs a logged-in team member. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Recommended | service_role / secret key | **Settings → Team users**: adding people and resetting passwords. Used only on the server, and only for admins. |
 
-## Stage moves and interviewers: the rules
+For running on your own computer, copy `.env.example` to `.env.local` and fill it in. `.env.local` is never uploaded.
 
-- Candidates can be moved to **any** stage, forwards or backwards. The confirmation always says how many are moving, from where and to where.
-- Moving into a stage marked "asks for interviewer" (1:1 Aligned) **requires** choosing one interviewer. All candidates in that move get the same interviewer, and it can be changed later per candidate or in bulk.
-- When candidates leave 1:1 Aligned, **they keep their interviewer tag**. It can be removed with **Interviewer… → No interviewer**.
-- Every move records who did it, the time (IST), the candidate, the from → to stage, and a **bulk action ID**, so a bulk move shows as one entry in the Activity Log.
-- Moving candidates who are already in the chosen stage changes nothing for them, and the confirmation says so.
+---
 
-## Bulk-sender export: the rules
+## 5. Team users
 
-- **Columns, in this order:** `Name,Mobile Number,Source,Tags,booking_at`
-- **Name:** trimmed, and quoted only if it contains a comma.
-- **Mobile Number:** `91` plus the 10-digit mobile, digits only, e.g. `919962791460`.
-- **Source:** always `ORGANIC`. **booking_at:** always empty.
-- **Tags:** empty, or the candidate's stage, interviewer, or custom text, chosen in the dialog.
-- **File format:** UTF-8 with BOM, LF line endings, one newline after the last row.
-- **Skipped:** candidates without a valid mobile, and a second candidate with the same mobile. Both are listed after the download.
-- **File name:** `ROLE_Stage_DD-MMM-YYYY.csv`. "1:1 Aligned" becomes `1-1-Aligned`, and exports covering several stages are called `Mixed`.
-- **Every export is recorded** in the Activity Log: who, when, role, stage filter, count, and the exact candidates.
-- **Don't open and save the CSV in Excel before uploading it**, because Excel turns the mobile numbers into `9.19963E+11`. To look at it, use Notepad.
+### Adding a team member
+**From the panel (admins):**
+1. Go to **Settings → Team users → Add a team member**.
+2. Enter their name and email. A strong password is suggested; tick **Make admin** if needed.
+3. Click **Add team member**.
+4. Share the email and password **privately**, e.g. a direct WhatsApp message. They can log in straight away.
 
-`npm test` includes a byte-for-byte check against `samples/bulk_sender_sample.csv`: it rebuilds that file from its names and numbers and compares every byte.
+**From Supabase** (if `SUPABASE_SERVICE_ROLE_KEY` isn't set):
+1. Go to **Authentication → Users → Add user → Create new user**.
+2. Enter their email and a password, and tick **Auto Confirm User**.
+3. Set their name in **Settings → Team users**.
 
-## Daily upload: how it works
+### Managing access
+**Admins and members:**
+- **Admins** can add people, change access, and reset passwords.
+- **Everyone** can use every other part of the panel, including the other Settings tabs. Each person can change their own display name.
+
+**Removing someone without losing their history:**
+- In **Settings → Team users**, click **Switch off**. They're locked out immediately, and everything they did stays in the history.
+- **Switch on** brings them back.
+
+**Forgotten password:**
+- In **Settings → Team users**, click the 🔑 key icon and choose **Set password**, then share the new password privately.
+
+**Safety rules:**
+- Nobody can remove their own admin access.
+- There is always at least one active admin.
+
+---
+
+## 6. The daily routine
+
+1. **Upload:** in **Upload History → Upload Naukri file**, drop today's export.
+   - Review the preview: new, duplicates, possible duplicates, unassigned, errors.
+   - Click **Import**.
+2. **Filter:** in **ZBM** or **HOS**, open **Filters**, tick the stage, then **Apply filters**.
+3. **Select:** tick the top checkbox, then **Select all … matching the filters**.
+4. **Export:** click **Export for Bulk Sender** and choose Tags if needed, then **Download CSV**.
+   - Upload the file to the bulk sender **without opening it in Excel**.
+5. **Move:** back in the panel, click **Move these … exported candidates to stage…**, choose the next stage, and confirm.
+   - For **1:1 Aligned**, pick the interviewer.
+6. **Check:**
+   - **Dashboard** for today's numbers.
+   - **Analytics → Bottlenecks** for candidates stuck too long, or stages converting poorly.
+   - "Open them" opens those candidates, ready to export or move.
+
+---
+
+## 7. Rules reference
+
+### 7.1 Uploads and duplicates
 
 1. Download the export from Naukri and drop it on the upload page. It's read **in your browser**, and nothing is saved until you click Import.
 2. **Role** is detected from Job Title using the keyword rules in Settings, ignoring letter case. "ZBM" and "HOS" only count as whole words, so "Hospital" isn't HOS. If no keyword matches, or both roles match, the row goes to the **Unassigned** tab, where you choose ZBM, HOS or Skip.
@@ -245,44 +215,151 @@ All days are India time (IST).
 
 If the internet drops during an import, the upload shows **"Stopped part-way"** in Upload History. Upload the same file again: the candidates already saved are skipped as exact duplicates, and only the missing ones are added.
 
-## Automated tests (for developers)
+### 7.2 Bulk-sender export
 
-`npm test` runs 50 checks: the parser, the duplicate rules, the filters, the history wording, the bottleneck rules and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
+- **Columns, in this order:** `Name,Mobile Number,Source,Tags,booking_at`
+- **Name:** trimmed, and quoted only if it contains a comma.
+- **Mobile Number:** `91` plus the 10-digit mobile, digits only, e.g. `919962791460`.
+- **Source:** always `ORGANIC`. **booking_at:** always empty.
+- **Tags:** empty, or the candidate's stage, interviewer, or custom text, chosen in the dialog.
+- **File format:** UTF-8 with BOM, LF line endings, one newline after the last row.
+- **Skipped:** candidates without a valid mobile, and a second candidate with the same mobile. Both are listed after the download.
+- **File name:** `ROLE_Stage_DD-MMM-YYYY.csv`. "1:1 Aligned" becomes `1-1-Aligned`, and exports covering several stages are called `Mixed`.
+- **Every export is recorded** in the Activity Log: who, when, role, stage filter, count, and the exact candidates.
+- **Don't open and save the CSV in Excel before uploading it**, because Excel turns the mobile numbers into `9.19963E+11`. To look at it, use Notepad.
 
-## How the data is protected
+`npm test` includes a byte-for-byte check against `samples/bulk_sender_sample.csv`: it rebuilds that file from its names and numbers and compares every byte.
 
-- **Row Level Security** is on for every table. Without logging in, nothing can be read, not even through the public key.
-- Users switched off with `is_active = false` lose access immediately.
-- Candidates, uploads and the activity log **cannot be deleted** by anyone using the app.
-- "Who did it" is set by the database from the login session, so it can't be faked from the browser.
-- Every stage change and interviewer change is logged automatically, with stage names copied in, so the history stays readable even if a stage is renamed later.
-- New candidates always start in the default stage (Shortlisted), whatever the app sends.
-- `samples/` is excluded from git because it contains real candidate data.
+### 7.3 Stage moves and interviewers
 
-## Supabase free tier: pausing
+- Candidates can be moved to **any** stage, forwards or backwards. The confirmation always says how many are moving, from where and to where.
+- Moving into a stage marked "asks for interviewer" (1:1 Aligned) **requires** choosing one interviewer. All candidates in that move get the same interviewer, and it can be changed later per candidate or in bulk.
+- When candidates leave 1:1 Aligned, **they keep their interviewer tag**. It can be removed with **Interviewer… → No interviewer**.
+- Every move records who did it, the time (IST), the candidate, the from → to stage, and a **bulk action ID**, so a bulk move shows as one entry in the Activity Log.
+- Moving candidates who are already in the chosen stage changes nothing for them, and the confirmation says so.
 
-A free Supabase project **pauses after about 7 days without activity**. Daily use prevents this. If it does pause, the app shows connection errors. To fix it:
-1. Log in at supabase.com and open the project.
-2. Click **Restore project** and wait a few minutes.
+### 7.4 How Analytics counts
 
-No data is lost.
+All days are India time (IST).
+- **Enters a stage:** a candidate enters Shortlisted when uploaded, and any other stage when moved into it.
+- **Funnel:** how many candidates entered each stage between From and To, and how many of them have since reached any later stage (skipping a stage counts). For example, Shortlisted → JD Cleared = 38% means 38% of the candidates who entered Shortlisted in the period have moved further.
+- **Compared with:** the same number of days just before your From date.
+- **Time in stage:** days from entering a stage to leaving it, for stays that started in the period. The median is the typical stay, while a few very long stays pull the average up.
+- **Stuck:** in the same stage for more than "max days in a stage" (default 3). The last stage (Webinar Invitation) doesn't count.
+- **Bottleneck alerts:**
+  - conversion below the minimum % (default 30%), only when at least 5 candidates entered the stage, since tiny numbers give silly percentages
+  - a median stay over the day limit
+  - any stuck group
 
-## Project layout
+  Both limits are set in **Settings → Bottleneck limits**.
+- **Interviewer filter:** limits everything to candidates who currently have that interviewer.
+
+### 7.5 Settings
+- **Stages:**
+  - Rename one, change its colour, reorder with the ↑ / ↓ arrows, add new ones at the end, and choose where new candidates start.
+  - Mark which stage asks for an interviewer.
+  - A stage can only be deleted when it holds no candidates and isn't the starting stage. Its history stays readable either way.
+- **Interviewers:**
+  - Add, rename, recolour, or switch on and off.
+  - Removing someone who still has candidates switches them off instead, so tags and history are kept.
+- **Role keywords:**
+  - Add or remove keywords, and choose *Contains* or *Whole word* for each.
+  - Use **Try a job title** to test a title before an upload.
+- **Bottleneck limits:** max days in a stage (1–90) and minimum conversion (1–100%).
+- **Every settings change** is recorded in the Activity Log.
+
+---
+
+## 8. Using it on a phone
+
+The panel works on phones:
+- a menu replaces the top navigation
+- candidates appear as cards
+- dialogs and filters fit the screen
+
+**To add it to your home screen like an app:**
+- **iPhone (Safari):** open the panel, tap **Share → Add to Home Screen**.
+- **Android (Chrome):** tap **⋮ → Add to Home screen** (or **Install app**).
+
+---
+
+## 9. Supabase free tier: pausing
+
+A free Supabase project **pauses after about 7 days without activity**. Daily use prevents this.
+
+If it does pause, the login page says **"Can't reach the database"**. To fix it:
+1. Log in at **supabase.com** and open the project.
+2. Click **Restore project**.
+3. Wait a few minutes, then reload the panel.
+
+No data is lost. Free projects get no automatic backups, so consider Supabase Pro once the team relies on the panel daily.
+
+---
+
+## 10. How the data is protected
+
+- **Login and access**
+  - **Row Level Security** is on for every table. Without logging in as an active team member, nothing can be read, not even through the public key.
+  - Public sign-up is off. Only admins (or the Supabase dashboard) can create accounts.
+  - Switched-off users lose access immediately.
+- **Data that can't be lost or faked**
+  - Candidates, uploads and the Activity Log **can't be deleted** from the panel.
+  - An upload never changes an existing candidate's stage.
+  - "Who did it" is stamped by the database from the login session, so it can't be faked from the browser.
+- **Keys and files**
+  - The secret service key is used only on the server, and only after checking the person is an admin.
+  - Naukri files are read **in your browser**. Only the cleaned rows are sent to the database.
+  - The panel isn't indexed by search engines, and `samples/` (real candidate data) is excluded from git.
+
+---
+
+## 11. Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| "Can't reach the database" at login | The Supabase project is paused. See section 9. Otherwise, check your internet connection. |
+| "Wrong email or password" | Check the address. An admin can set a new password in Settings → Team users. |
+| "Your access is switched off" | An admin can click **Switch on** in Settings → Team users. |
+| A page says a function "does not exist" | A SQL file wasn't run. Run the missing `supabase/migrations` file(s) in order. |
+| Settings: "Adding users needs SUPABASE_SERVICE_ROLE_KEY" | Add that variable in Vercel (section 4), then redeploy. |
+| The bulk sender rejects the CSV, or numbers look like `9.19963E+11` | The file was opened and saved in Excel. Export again and upload it untouched. |
+| Upload says "doesn't look like a Naukri export" | Use the candidate export from Naukri. The file needs at least *Job Title*, *Name* and a phone or email column. |
+| An upload shows "Stopped part-way" | Upload the same file again. Saved candidates are skipped as exact duplicates, and only the missing ones are added. |
+| Vercel build failed | **Vercel → Deployments →** click the failed one and read the red error. Usually a file was missed in the GitHub upload, so upload the full folder again. |
+
+---
+
+## 12. For developers
+
+**Run locally:**
+1. Install Node.js LTS.
+2. Copy `.env.example` to `.env.local` and fill it in.
+3. Run `npm install`, then `npm run dev`.
+4. Open http://localhost:3000.
+
+**Tests:** `npm test` runs about 50 checks:
+- the Naukri parser, including a test against `samples/naukri_sample.xlsx` when present
+- the duplicate rules and the filters
+- the history wording and the bottleneck rules
+- a **byte-for-byte** comparison of the bulk-sender export with `samples/bulk_sender_sample.csv`
+
+**Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/   SQL files: run in order in the SQL Editor (one new file per phase)
-src/lib/naukri/        Naukri file reading, cleaning rules, role detection, duplicate checks, import
-src/components/upload/ upload page: drop zone, preview, decisions
-src/components/candidates/ ZBM/HOS table, filter panel, columns, export dialog, move dialogs, candidate panel
-src/components/activity/  Activity Log page
-src/components/analytics/ Analytics page (charts, funnel, time in stage, stuck list)
-src/lib/analytics/     plain-English bottleneck rules (+ tests)
-src/lib/export/        bulk-sender CSV builder (+ byte-for-byte test)
-src/lib/candidates/    filter definitions shared by the table and the database
-src/app/login/         login page
-src/app/(app)/         every logged-in page (zbm, hos, dashboard, analytics, uploads, activity, settings)
-src/components/        navigation, page header, ui/ (shadcn-style building blocks)
-src/lib/supabase/      database connection (browser, server, middleware)
-src/lib/dates.ts       IST date formatting (DD-MMM-YYYY)
-samples/               your Naukri and bulk-sender sample files (not committed)
+supabase/migrations/        SQL files 0001–0006: run in order (one new file per release)
+src/app/login/              sign-in page
+src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
+src/app/(app)/settings/     settings page + server-only team-user actions
+src/components/             navigation, frosted backdrop, page header, ui/ building blocks
+src/components/candidates/  ZBM/HOS table, filters, columns, export, move dialogs, candidate panel
+src/components/upload/      upload page: drop zone, preview, decisions
+src/components/analytics/   charts, funnel, time in stage, stuck list
+src/components/activity/    Activity Log
+src/components/settings/    Settings tabs
+src/lib/naukri/             reading Naukri files, cleaning, role detection, duplicate checks, import
+src/lib/export/             bulk-sender CSV builder
+src/lib/candidates/         filter definitions, history wording
+src/lib/analytics/          bottleneck rules
+src/lib/supabase/           database connection (browser, server, middleware)
+samples/                    your Naukri and bulk-sender samples (not committed)
 ```

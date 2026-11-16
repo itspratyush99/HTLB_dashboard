@@ -1,27 +1,41 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* shadcn/ui theme tokens (light theme only, as requested). */
+/*
+ * HTLB theme: forest green + gold, light, minimal, frosted glass.
+ * Colours are CSS variables, so a brand change is made here (and in src/lib/brand.ts).
+ */
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.002 247);
-  --foreground: oklch(0.21 0.03 265);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.03 265);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.03 265);
-  --primary: oklch(0.45 0.16 264);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.96 0.005 264);
-  --secondary-foreground: oklch(0.25 0.03 265);
-  --muted: oklch(0.96 0.005 264);
-  --muted-foreground: oklch(0.52 0.02 264);
-  --accent: oklch(0.95 0.015 264);
-  --accent-foreground: oklch(0.25 0.03 265);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.91 0.006 264);
-  --input: oklch(0.91 0.006 264);
-  --ring: oklch(0.6 0.12 264);
+  --radius: 0.875rem;
+
+  --background: #f5f5f2; /* warm off-white page */
+  --foreground: #1d1d1f; /* near-black text */
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+
+  --primary: #1f4d36; /* forest green */
+  --primary-foreground: #ffffff;
+  --gold: #c9a227; /* gold accent */
+  --gold-soft: #fbf5e1; /* gold tint for selections */
+  --gold-deep: #8a6d10; /* gold text on white */
+
+  --secondary: #eef1ec;
+  --secondary-foreground: #1f3a2b;
+  --muted: #f0f0ec;
+  --muted-foreground: #6e6e73; /* soft grey text */
+  --accent: #eef3ef; /* hover tint (green) */
+  --accent-foreground: #1d1d1f;
+  --destructive: #d03b3b;
+  --border: #e4e4df;
+  --input: #dcdcd6;
+  --ring: #c9a227;
+
+  /* Frosted glass surfaces */
+  --glass: rgba(255, 255, 255, 0.68);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.7);
 }
 
 @theme inline {
@@ -33,6 +47,9 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-deep: var(--gold-deep);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -43,18 +60,48 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --radius-xl: calc(var(--radius) + 4px);
+  /* Apple's system font where available (SF Pro), Geist elsewhere. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-geist-sans), "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), Menlo, monospace;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.005em;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Frosted-glass panel: translucent white + Gaussian blur of what's behind it. */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      0 1px 2px rgba(16, 24, 20, 0.04),
+      0 8px 28px rgba(16, 24, 20, 0.06);
+  }
+  .glass-strong {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
   }
 }

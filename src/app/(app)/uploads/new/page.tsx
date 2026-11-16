@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { UploadWizard } from "@/components/upload/upload-wizard";
 
-export const metadata = { title: "Upload Naukri file · Candidate Tracker" };
+export const metadata = { title: "Upload Naukri file" };
 
 export default function NewUploadPage() {
   return (

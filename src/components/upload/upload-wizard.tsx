@@ -146,7 +146,7 @@ export function UploadWizard() {
               setFlagDecisions(Object.fromEntries(plan.possibleRows.map((r) => [r.parsed.rowNumber, d])))
             }
           />
-          <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t bg-card/95 px-4 py-3 backdrop-blur">
+          <div className="glass glass-strong sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-3 rounded-none border-x-0 border-b-0 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <p className="text-sm">
               Ready to add <b>{plan.toImport.length}</b> candidate{plan.toImport.length === 1 ? "" : "s"}
               {plan.toImport.length > 0 && (
@@ -219,7 +219,7 @@ export function UploadWizard() {
 
 function FileBar({ file, onReset }: { file: File; onReset?: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
+    <div className="glass flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
         <FileSpreadsheet className="size-5 shrink-0 text-emerald-600" />
         <div className="min-w-0">

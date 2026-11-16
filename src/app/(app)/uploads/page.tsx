@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UploadStatus } from "@/components/upload/upload-status";
 
-export const metadata = { title: "Upload History · Candidate Tracker" };
+export const metadata = { title: "Upload History" };
 
 const PAGE_SIZE = 50;
 
@@ -37,13 +37,13 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
       {error && <p className="mb-4 text-sm text-red-700">Couldn&apos;t load uploads: {error.message}</p>}
 
       {!uploads?.length ? (
-        <div className="rounded-lg border border-dashed bg-card p-12 text-center">
+        <div className="glass rounded-2xl border-dashed p-12 text-center">
           <p className="font-medium">No uploads yet</p>
           <p className="mt-1 text-sm text-muted-foreground">Upload today&apos;s Naukri export to add your first candidates.</p>
           <Button asChild className="mt-4"><Link href="/uploads/new"><Upload /> Upload Naukri file</Link></Button>
         </div>
       ) : (
-        <div className="rounded-lg border bg-card">
+        <div className="glass overflow-hidden rounded-2xl">
           <Table>
             <TableHeader>
               <TableRow>

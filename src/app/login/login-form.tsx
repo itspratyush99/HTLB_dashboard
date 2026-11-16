@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Users } from "lucide-react";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -47,13 +48,11 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="items-center text-center">
-        <div className="mb-2 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Users className="size-5" />
-        </div>
-        <CardTitle className="text-xl">Candidate Tracker</CardTitle>
-        <CardDescription>Log in with your team account</CardDescription>
+    <Card className="w-full max-w-sm rounded-3xl p-2">
+      <CardHeader className="items-center pb-2 text-center">
+        <Image src="/brand/htlb-logo.png" alt="HTLB Systems: Enriching Knowledge, Empowering Nation" width={160} height={168} priority className="mx-auto mb-2 rounded-2xl" />
+        <CardTitle className="text-2xl font-semibold tracking-tight">Candidate Tracker</CardTitle>
+        <CardDescription>Sign in with your HTLB team account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -63,6 +62,7 @@ export function LoginForm() {
               id="email"
               type="email"
               autoComplete="email"
+              inputMode="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -79,9 +79,9 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          <Button type="submit" disabled={loading} className="mt-1">
+          <Button type="submit" disabled={loading} className="mt-1 h-11">
             {loading && <Loader2 className="animate-spin" />}
-            {loading ? "Logging in…" : "Log in"}
+            {loading ? "Signing in…" : "Sign in"}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             No account? Ask your admin to add you.

@@ -34,7 +34,7 @@ export function Dropzone({ onFile, onReject }: { onFile: (file: File) => void; o
       }}
       onClick={() => input.current?.click()}
       className={cn(
-        "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed bg-card px-6 py-16 text-center transition-colors",
+        "glass flex cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-black/15 px-6 py-16 text-center transition-colors",
         dragging ? "border-primary bg-primary/5" : "hover:border-primary/50 hover:bg-accent/40",
       )}
     >

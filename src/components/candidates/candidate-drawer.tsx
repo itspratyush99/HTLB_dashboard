@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { describeEvent, type HistoryEvent } from "@/lib/candidates/history";
 import type { CandidateRow, Interviewer, Stage } from "@/lib/candidates/types";
+import { ROLE_COLORS } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,7 @@ export function CandidateDrawer({
             <div className="border-b px-6 py-4">
               <div className="flex flex-wrap items-center gap-2 pr-6">
                 <DialogTitle className="text-xl">{detail.name}</DialogTitle>
-                <Badge color={detail.role === "ZBM" ? "#4f46e5" : "#0f766e"}>{detail.role}</Badge>
+                <Badge color={ROLE_COLORS[detail.role]}>{detail.role}</Badge>
               </div>
               <DialogDescription className="mt-1">
                 {[detail.designation, detail.current_company].filter(Boolean).join(" at ") || detail.resume_headline || "—"}

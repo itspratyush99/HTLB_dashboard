@@ -9,12 +9,13 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/dates";
 import { buildInsights, conversions, type AnalyticsData } from "@/lib/analytics/insights";
 import type { Interviewer } from "@/lib/candidates/types";
+import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
 /* Chart colours (validated reference palette): one series hue, recessive chrome, reserved status red. */
-const SERIES = "#2a78d6";
+const SERIES = BRAND.forestLight;
 const GRID = "#e7e6e2";
 const AXIS_TEXT = "#6b6a66";
 const CRITICAL = "#d03b3b";
@@ -66,12 +67,12 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
   return (
     <div className="flex flex-col gap-6">
       {/* Filters: one row above everything */}
-      <div className="sticky top-14 z-20 flex flex-wrap items-end gap-3 rounded-lg border bg-card/95 p-3 backdrop-blur">
+      <div className="glass glass-strong z-20 flex flex-wrap items-end gap-3 rounded-2xl p-3 md:sticky md:top-[calc(3.5rem+env(safe-area-inset-top)+0.5rem)]">
         <div className="flex flex-col gap-1 text-xs font-medium">
           Role
-          <div className="inline-flex rounded-md border p-0.5">
+          <div className="inline-flex rounded-full bg-black/[0.05] p-0.5">
             {(["BOTH", "ZBM", "HOS"] as RoleChoice[]).map((r) => (
-              <button key={r} onClick={() => setRole(r)} className={cn("rounded px-3 py-1 text-sm", role === r ? "bg-slate-800 text-white" : "hover:bg-accent")}>
+              <button key={r} onClick={() => setRole(r)} className={cn("rounded-full px-3 py-1 text-sm", role === r ? "bg-primary text-white" : "hover:bg-black/[0.05]")}>
                 {r === "BOTH" ? "Both" : r}
               </button>
             ))}
@@ -87,21 +88,21 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
         </label>
         <div className="flex gap-1 pb-0.5">
           {[7, 14, 30, 90].map((d) => (
-            <button key={d} onClick={() => quick(d)} className={cn("rounded-md border px-2 py-1 text-xs", rangeDays === d && to === istToday() ? "border-slate-800 bg-slate-800 text-white" : "hover:bg-accent")}>
+            <button key={d} onClick={() => quick(d)} className={cn("rounded-full border border-black/10 px-2.5 py-1 text-xs", rangeDays === d && to === istToday() ? "border-primary bg-primary text-white" : "hover:bg-black/[0.05]")}>
               {d}d
             </button>
           ))}
         </div>
         <label className="flex flex-col gap-1 text-xs font-medium">
           Interviewer
-          <select className="h-8 min-w-36 rounded-md border bg-card px-2 text-sm font-normal" value={interviewerId} onChange={(e) => setInterviewerId(e.target.value)}>
+          <select className="h-9 min-w-36 rounded-lg border border-black/10 bg-white/80 px-2 text-sm font-normal" value={interviewerId} onChange={(e) => setInterviewerId(e.target.value)}>
             <option value="">All candidates</option>
             {interviewers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
         </label>
         {loading && <Loader2 className="mb-2 size-4 animate-spin text-muted-foreground" />}
         {data && (
-          <p className="ml-auto pb-1 text-xs text-muted-foreground">
+          <p className="w-full pb-1 text-xs text-muted-foreground xl:ml-auto xl:w-auto">
             {formatDate(data.period.from)} – {formatDate(data.period.to)} · compared with {formatDate(data.period.prev_from)} – {formatDate(data.period.prev_to)}
           </p>
         )}
@@ -128,7 +129,7 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border bg-card p-5">
+    <section className="glass rounded-3xl p-4 sm:p-6">
       <h2 className="font-semibold">{title}</h2>
       {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
       <div className="mt-4">{children}</div>
@@ -193,7 +194,7 @@ function Insights({ data, role, interviewerId }: { data: AnalyticsData; role: Ro
 function ChartTooltip({ active, payload, label, suffix }: { active?: boolean; payload?: { value: number }[]; label?: string; suffix: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border bg-card px-2.5 py-1.5 text-xs shadow-md">
+    <div className="glass glass-strong rounded-xl px-2.5 py-1.5 text-xs">
       <div className="text-muted-foreground">{label ? formatDate(label) : ""}</div>
       <div className="font-semibold tabular-nums">{payload[0].value} {suffix}</div>
     </div>
@@ -207,7 +208,7 @@ function DayBars({ rows, height, yMax, suffix, showYAxis = true }: { rows: { day
         <CartesianGrid vertical={false} stroke={GRID} />
         <XAxis dataKey="day" tickFormatter={shortDay} tick={{ fontSize: 11, fill: AXIS_TEXT }} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={16} />
         <YAxis hide={!showYAxis} allowDecimals={false} domain={[0, yMax ?? "auto"]} tick={{ fontSize: 11, fill: AXIS_TEXT }} tickLine={false} axisLine={false} width={40} />
-        <Tooltip cursor={{ fill: "rgba(42,120,214,0.08)" }} content={<ChartTooltip suffix={suffix} />} />
+        <Tooltip cursor={{ fill: "rgba(31,77,54,0.06)" }} content={<ChartTooltip suffix={suffix} />} />
         <Bar dataKey="value" fill={SERIES} maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
@@ -286,7 +287,7 @@ function Funnel({ data }: { data: AnalyticsData }) {
           const low = c && c.pct !== null && c.entered >= 5 && c.pct < min;
           return (
             <div key={s.id}>
-              <div className="grid grid-cols-[minmax(0,13rem)_1fr_4.5rem] items-center gap-3" title={`${s.entered} entered ${s.name} in this period · ${s.current} in it now`}>
+              <div className="grid grid-cols-[minmax(0,7.5rem)_1fr_3rem] items-center gap-2 sm:grid-cols-[minmax(0,13rem)_1fr_4.5rem] sm:gap-3" title={`${s.entered} entered ${s.name} in this period · ${s.current} in it now`}>
                 <span className="truncate"><Badge color={s.color}>{s.name}</Badge></span>
                 <span className="h-6 overflow-hidden rounded bg-muted/60">
                   <span className="block h-full rounded-r" style={{ width: `${(Number(s.entered) / max) * 100}%`, backgroundColor: SERIES, minWidth: Number(s.entered) ? 4 : 0 }} />
@@ -294,7 +295,7 @@ function Funnel({ data }: { data: AnalyticsData }) {
                 <span className="text-right text-sm font-semibold tabular-nums">{Number(s.entered).toLocaleString("en-IN")}</span>
               </div>
               {c && (
-                <div className="flex items-center gap-2 py-1 pl-[13.75rem] text-xs">
+                <div className="flex items-center gap-2 py-1 pl-[8rem] text-xs sm:pl-[13.75rem]">
                   <ArrowDown className="size-3 text-muted-foreground" />
                   {c.pct === null ? (
                     <span className="text-muted-foreground">no one entered</span>
@@ -324,7 +325,7 @@ function TimeInStage({ data }: { data: AnalyticsData }) {
   const rows = [...data.time_in_stage].sort((a, b) => a.position - b.position);
   return (
     <Card title="Time in stage" subtitle="Days from entering a stage to leaving it, for stays that started in this period.">
-      <table className="w-full text-sm">
+      <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
         <thead className="text-left text-xs text-muted-foreground">
           <tr>
             <th className="pb-2 font-medium">Stage</th>
@@ -355,7 +356,7 @@ function TimeInStage({ data }: { data: AnalyticsData }) {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
       <p className="mt-3 text-xs text-muted-foreground">Red = median over your {max}-day limit. The median is the typical stay; the average is pulled up by a few long ones.</p>
     </Card>
   );
@@ -371,7 +372,7 @@ function Stuck({ data, interviewerId }: { data: AnalyticsData; interviewerId: st
       {!data.stuck.length ? (
         <p className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="size-4" /> Nobody is stuck.</p>
       ) : (
-        <table className="w-full text-sm">
+        <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[34rem] text-sm">
           <thead className="text-left text-xs text-muted-foreground">
             <tr>
               <th className="pb-2 font-medium">Role</th>
@@ -408,7 +409,7 @@ function Stuck({ data, interviewerId }: { data: AnalyticsData; interviewerId: st
               <td colSpan={2} />
             </tr>
           </tbody>
-        </table>
+        </table></div>
       )}
     </Card>
   );

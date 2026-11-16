@@ -6,6 +6,7 @@ import type { Match } from "@/lib/naukri/dedupe";
 import type { FlagDecision, Plan, PlannedRow, RoleDecision } from "@/lib/naukri/plan";
 import type { ParseResult } from "@/lib/naukri/types";
 import { formatDate } from "@/lib/dates";
+import { ROLE_COLORS } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -391,7 +392,7 @@ function Stat({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card p-3",
+        "glass rounded-2xl p-3",
         tone === "positive" && "border-emerald-200 bg-emerald-50",
         tone === "warning" && "border-amber-200 bg-amber-50",
         tone === "danger" && "border-red-200 bg-red-50",
@@ -430,7 +431,7 @@ function Count({ n, warn, danger }: { n: number; warn?: boolean; danger?: boolea
 
 export function RoleBadge({ role }: { role: string | null }) {
   if (!role) return <Badge>—</Badge>;
-  return <Badge color={role === "ZBM" ? "#4f46e5" : "#0f766e"}>{role}</Badge>;
+  return <Badge color={ROLE_COLORS[role]}>{role}</Badge>;
 }
 
 function Explain({ children }: { children: React.ReactNode }) {
@@ -442,7 +443,7 @@ function BulkBar({ children }: { children: React.ReactNode }) {
 function Empty({ show, children }: { show: boolean; children: React.ReactNode }) {
   if (!show) return null;
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-dashed bg-card p-6 text-sm text-muted-foreground">
+    <div className="glass flex items-center gap-2 rounded-2xl border-dashed p-6 text-sm text-muted-foreground">
       <FileWarning className="size-4" /> {children}
     </div>
   );

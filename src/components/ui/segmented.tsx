@@ -15,7 +15,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "xs";
 }) {
   return (
-    <div className="inline-flex rounded-md border bg-card p-0.5">
+    <div className="inline-flex rounded-full bg-black/[0.05] p-0.5">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -24,15 +24,15 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(o.value)}
             className={cn(
-              "rounded px-2.5 font-medium transition-colors",
+              "rounded-full px-2.5 font-medium transition-colors",
               size === "sm" ? "py-1 text-xs" : "py-0.5 text-[11px]",
               active
                 ? o.tone === "positive"
-                  ? "bg-emerald-600 text-white"
+                  ? "bg-primary text-white"
                   : o.tone === "warning"
                     ? "bg-amber-500 text-white"
-                    : "bg-slate-700 text-white"
-                : "text-muted-foreground hover:bg-accent",
+                    : "bg-white text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {o.label}

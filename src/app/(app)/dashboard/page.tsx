@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 
-export const metadata = { title: "Dashboard · Candidate Tracker" };
+export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
 type RoleStats = {
@@ -51,7 +51,7 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
   const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
   return (
-    <section className="rounded-xl border bg-card p-5">
+    <section className="glass rounded-3xl p-4 sm:p-6">
       <div className="mb-4 flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">
           {role} <span className="text-sm font-normal text-muted-foreground">· {ROLE_NAMES[role]}</span>
@@ -76,12 +76,12 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
           <li key={st.id}>
             <Link
               href={roleLink(role, { stage_ids: [st.id] })}
-              className="group grid grid-cols-[minmax(0,15rem)_1fr_3rem] items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent/60"
+              className="group grid grid-cols-[minmax(0,11rem)_1fr_2.5rem] items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-white/70 sm:grid-cols-[minmax(0,15rem)_1fr_3rem]"
               title={`${st.count} ${role} candidates in ${st.name}. Click to open them.`}
             >
               <span className="truncate"><Badge color={st.color}>{st.name}</Badge></span>
               <span className="h-2 overflow-hidden rounded-full bg-muted">
-                <span className="block h-full rounded-full bg-[#2a78d6]" style={{ width: `${(st.count / max) * 100}%` }} />
+                <span className="block h-full rounded-full bg-[#2f6f4f]" style={{ width: `${(st.count / max) * 100}%` }} />
               </span>
               <span className="text-right text-sm font-semibold tabular-nums group-hover:text-primary">{st.count.toLocaleString("en-IN")}</span>
             </Link>
@@ -96,7 +96,7 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
           <Link
             key={i.id}
             href={roleLink(role, { stage_ids: s.stages.filter((x) => x.requires_interviewer).map((x) => x.id), interviewer_ids: [String(i.id)] })}
-            className="flex items-center gap-2 rounded-lg border px-3 py-2 hover:bg-accent/60"
+            className="flex items-center gap-2 rounded-2xl border border-black/[0.06] bg-white/60 px-3 py-2 hover:bg-white"
           >
             <Badge color={i.color}>{i.name}</Badge>
             <span className="text-lg font-semibold tabular-nums">{i.count}</span>
@@ -110,11 +110,11 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
 
 function Tile({ href, icon: Icon, label, value, alert }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; value: number; alert?: boolean }) {
   return (
-    <Link href={href} className={`rounded-lg border p-3 transition-colors hover:bg-accent/60 ${alert ? "border-red-200 bg-red-50/60" : ""}`}>
+    <Link href={href} className={`rounded-2xl border border-black/[0.06] p-3 transition-colors ${alert ? "bg-red-50/70 hover:bg-red-50" : "bg-white/60 hover:bg-white"}`}>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icon className={`size-3.5 ${alert ? "text-[#d03b3b]" : ""}`} /> {label}
       </div>
-      <div className="mt-1 text-3xl font-semibold tabular-nums">{value.toLocaleString("en-IN")}</div>
+      <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{value.toLocaleString("en-IN")}</div>
     </Link>
   );
 }

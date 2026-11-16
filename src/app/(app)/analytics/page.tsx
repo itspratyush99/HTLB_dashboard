@@ -4,7 +4,7 @@ import type { Interviewer } from "@/lib/candidates/types";
 import { PageHeader } from "@/components/page-header";
 import { AnalyticsView } from "@/components/analytics/analytics-view";
 
-export const metadata = { title: "Analytics · Candidate Tracker" };
+export const metadata = { title: "Analytics" };
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();

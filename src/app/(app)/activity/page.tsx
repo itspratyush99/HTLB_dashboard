@@ -3,7 +3,7 @@ import type { Interviewer, Stage } from "@/lib/candidates/types";
 import { PageHeader } from "@/components/page-header";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 
-export const metadata = { title: "Activity Log · Candidate Tracker" };
+export const metadata = { title: "Activity Log" };
 
 export default async function ActivityPage() {
   const supabase = await createClient();
