@@ -1,4 +1,7 @@
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComingSoon, PageHeader } from "@/components/page-header";
 
@@ -26,7 +29,15 @@ export async function RoleTabPlaceholder({ role }: { role: "ZBM" | "HOS" }) {
 
   return (
     <>
-      <PageHeader title={`${role} candidates`} description={ROLE_NAMES[role]} />
+      <PageHeader
+        title={`${role} candidates`}
+        description={ROLE_NAMES[role]}
+        actions={
+          <Button asChild>
+            <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
+          </Button>
+        }
+      />
       <div className="mb-6 flex flex-wrap gap-2">
         {stages?.map((s) => (
           <Badge key={s.id} color={s.color} className="px-3 py-1 text-sm">

@@ -4,7 +4,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 
 **Built with:** Next.js · Supabase (database + login) · Vercel (hosting). All free tiers.
 
-> **Status: Phase 1** (database, login, layout and navigation). This README grows with each phase. The full version, including Vercel deployment, comes in Phase 6.
+> **Status: Phase 2.** Login, layout, Naukri file upload with duplicate checks, and Upload History are done. Next: Phase 3, the candidate table and bulk-sender export.
 
 ---
 
@@ -26,6 +26,8 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 3. Click **Run** (bottom right). You should see **"Success. No rows returned."**
 4. To check: open **Table Editor** in the sidebar. You should see 9 tables, and `stages` should have 6 rows.
 
+> Then do the same with **`0002_uploads.sql`**: New query → paste → Run. Always run the files in number order.
+>
 > Run each migration file **once only**. Running it twice gives "already exists" errors, which are harmless but not needed.
 
 ### Step 3: Make the panel invite-only
@@ -117,6 +119,48 @@ To stop the app, press `Ctrl + C` in the terminal. To start it again, run `npm r
 
 ---
 
+## Phase 2: updating and testing
+
+**Updating a live site that already has Phase 1:**
+1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0002_uploads.sql`, and click **Run**. You should see "Success".
+2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (not `node_modules`, `.next`, `.env.local` or the sample files), then click **Commit changes**.
+3. Wait about 2 minutes for Vercel to redeploy, then reload the site.
+
+**What to test**
+- [ ] **Upload History → Upload Naukri file**, or the button on the ZBM / HOS tabs, opens the upload page.
+- [ ] Drop `naukri_sample.xlsx`. The preview should show **62 total rows, 62 ZBM, 62 new**, 0 errors and 0 warnings.
+- [ ] Click **Import 62 candidates**. A green message appears, and ZBM shows **Shortlisted: 62**.
+- [ ] **Upload History** has one row. Click it to see the 62 candidates. **View** opens a Naukri profile.
+- [ ] Upload the **same file again**. The preview shows **62 duplicates skipped, 0 new**, and the Import button is greyed out.
+- [ ] Upload any other .xlsx or .csv (not from Naukri). It's rejected with "doesn't look like a Naukri candidate export" and nothing is saved.
+
+## Daily upload: how it works
+
+1. Download the export from Naukri and drop it on the upload page. It's read **in your browser**, and nothing is saved until you click Import.
+2. **Role** is detected from Job Title using the keyword rules in Settings, ignoring letter case. "ZBM" and "HOS" only count as whole words, so "Hospital" isn't HOS. If no keyword matches, or both roles match, the row goes to the **Unassigned** tab, where you choose ZBM, HOS or Skip.
+3. **Duplicates** are checked within each role, after trimming spaces and ignoring letter case:
+   - **Exact** (name + mobile + email all match): skipped. The existing candidate's stage and history stay as they are.
+   - **Possible** (mobile *or* email matches, but something differs): you choose **Skip** (the default) or **Add as new** for each row.
+   - The same person listed twice in one file is caught too.
+4. **Cleaning rules:**
+   - "NA" becomes empty.
+   - Dates are converted from DD-MMM-YYYY.
+   - The first valid 10-digit mobile is the main number. Anything else in the cell is stored as an alternate number.
+   - The first email is the main email. Any other email in the cell is stored as an alternate (Naukri sometimes lists two).
+   - Experience is converted to months.
+   - Salary is converted to INR lakhs, whatever currency is written.
+   - The hidden link behind "View profile" is saved.
+   - Screening answers (Ans(...) columns) are saved per question.
+   - The full original row is kept as well.
+5. **Rows that can't be imported** (no name, or neither a valid mobile nor an email) appear in **Errors**. Imported rows with a problem, such as a phone number damaged by Excel, appear in **Warnings**.
+6. New candidates always start in **Shortlisted**. An upload never changes or deletes an existing candidate.
+
+If the internet drops during an import, the upload shows **"Stopped part-way"** in Upload History. Upload the same file again: the candidates already saved are skipped as exact duplicates, and only the missing ones are added.
+
+## Automated tests (for developers)
+
+`npm test` runs 25 checks on the parser and duplicate rules. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
+
 ## How the data is protected
 
 - **Row Level Security** is on for every table. Without logging in, nothing can be read, not even through the public key.
@@ -139,6 +183,8 @@ No data is lost.
 
 ```
 supabase/migrations/   SQL files: run in order in the SQL Editor (one new file per phase)
+src/lib/naukri/        Naukri file reading, cleaning rules, role detection, duplicate checks, import
+src/components/upload/ upload page: drop zone, preview, decisions
 src/app/login/         login page
 src/app/(app)/         every logged-in page (zbm, hos, dashboard, analytics, uploads, activity, settings)
 src/components/        navigation, page header, ui/ (shadcn-style building blocks)
