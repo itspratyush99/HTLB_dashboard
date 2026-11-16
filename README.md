@@ -4,7 +4,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 
 **Built with:** Next.js · Supabase (database + login) · Vercel (hosting). All free tiers.
 
-> **Status: Phase 3.** Login, layout, Naukri upload with duplicate checks, Upload History, and the ZBM / HOS candidate tables with filters and the bulk-sender export are done. Next: Phase 4, moving candidates between stages, interviewers, and the Activity Log page.
+> **Status: Phase 4.** Login, Naukri upload, Upload History, the ZBM / HOS tables with filters and the bulk-sender export, stage moves, interviewers, candidate history and the Activity Log are done. Next: Phase 5, the Dashboard and Analytics.
 
 ---
 
@@ -26,7 +26,7 @@ Internal recruitment panel for ZBM and HOS hiring. Daily Naukri uploads, stage t
 3. Click **Run** (bottom right). You should see **"Success. No rows returned."**
 4. To check: open **Table Editor** in the sidebar. You should see 9 tables, and `stages` should have 6 rows.
 
-> Then do the same with **`0002_uploads.sql`** and **`0003_candidate_search.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
+> Then do the same with **`0002_uploads.sql`**, **`0003_candidate_search.sql`** and **`0004_moves_and_history.sql`**: New query → paste → Run, one file at a time. Always run the files in number order.
 >
 > Run each migration file **once only**. Running it twice gives "already exists" errors, which are harmless but not needed.
 
@@ -153,6 +153,30 @@ To stop the app, press `Ctrl + C` in the terminal. To start it again, run `npm r
 - [ ] After closing the dialog, the selection is still there.
 - [ ] Reload the page. Filters, sort and search stay as they were, because they're saved in the page address.
 
+## Phase 4: updating and testing
+
+**Updating a live site that already has Phase 3:**
+1. In Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/0004_moves_and_history.sql`, and click **Run**. You should see "Success". It adds functions only and changes no data.
+2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder, then click **Commit changes**.
+3. Wait about 2 minutes for Vercel to redeploy.
+
+**What to test (the daily routine)**
+- [ ] In ZBM, open **Filters**, tick **Shortlisted**, then **Apply filters**. Tick the top checkbox, then **Select all … matching**.
+- [ ] Click **Export for Bulk Sender → Download CSV**. Then click **Move these … exported candidates to stage…**, choose **JD and Assessment Test Cleared**, then **Continue → Yes, move**.
+- [ ] The table empties, because the candidates have left Shortlisted. Filter by the new stage and they're there.
+- [ ] Select a few, click **Move to stage… → 1:1 Aligned**. **Continue** stays greyed out until you pick an interviewer. Pick one, then confirm.
+- [ ] The **Interviewer** column shows coloured badges. Select two, click **Interviewer…**, and pick another name.
+- [ ] Click any **candidate name** to see all their details and their full **History**.
+- [ ] **Activity Log** shows every action, grouped: "Lakshay moved 35 candidates from FAQ Invited to 1:1 Aligned". Click **Show candidates** to see who. Try the User, Action, Role and date filters.
+
+## Stage moves and interviewers: the rules
+
+- Candidates can be moved to **any** stage, forwards or backwards. The confirmation always says how many are moving, from where and to where.
+- Moving into a stage marked "asks for interviewer" (1:1 Aligned) **requires** choosing one interviewer. All candidates in that move get the same interviewer, and it can be changed later per candidate or in bulk.
+- When candidates leave 1:1 Aligned, **they keep their interviewer tag**. It can be removed with **Interviewer… → No interviewer**.
+- Every move records who did it, the time (IST), the candidate, the from → to stage, and a **bulk action ID**, so a bulk move shows as one entry in the Activity Log.
+- Moving candidates who are already in the chosen stage changes nothing for them, and the confirmation says so.
+
 ## Bulk-sender export: the rules
 
 - **Columns, in this order:** `Name,Mobile Number,Source,Tags,booking_at`
@@ -193,7 +217,7 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
 
 ## Automated tests (for developers)
 
-`npm test` runs 40 checks: the parser, the duplicate rules, the filters and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
+`npm test` runs 43 checks: the parser, the duplicate rules, the filters, the history wording and the bulk-sender export. When `samples/naukri_sample.xlsx` is present, they include your real Naukri file.
 
 ## How the data is protected
 
@@ -219,7 +243,8 @@ No data is lost.
 supabase/migrations/   SQL files: run in order in the SQL Editor (one new file per phase)
 src/lib/naukri/        Naukri file reading, cleaning rules, role detection, duplicate checks, import
 src/components/upload/ upload page: drop zone, preview, decisions
-src/components/candidates/ ZBM/HOS table, filter panel, columns, export dialog
+src/components/candidates/ ZBM/HOS table, filter panel, columns, export dialog, move dialogs, candidate panel
+src/components/activity/  Activity Log page
 src/lib/export/        bulk-sender CSV builder (+ byte-for-byte test)
 src/lib/candidates/    filter definitions shared by the table and the database
 src/app/login/         login page

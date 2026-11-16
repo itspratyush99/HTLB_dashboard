@@ -8,6 +8,11 @@ import { formatDate } from "@/lib/dates";
 import type { CandidateRow } from "@/lib/candidates/types";
 import { Badge } from "@/components/ui/badge";
 
+/** Things a cell can do, e.g. open the candidate detail panel. */
+export interface CellContext {
+  openCandidate: (id: string) => void;
+}
+
 export interface Column {
   key: string;
   label: string;
@@ -15,7 +20,7 @@ export interface Column {
   sort?: string;
   defaultVisible: boolean;
   className?: string;
-  render: (row: CandidateRow) => React.ReactNode;
+  render: (row: CandidateRow, ctx: CellContext) => React.ReactNode;
 }
 
 const text = (v: string | number | null | undefined) => (v === null || v === undefined || v === "" ? <Dash /> : v);
@@ -30,9 +35,16 @@ export const BASE_COLUMNS: Column[] = [
     sort: "name",
     defaultVisible: true,
     className: "min-w-44 whitespace-nowrap font-medium",
-    render: (r) => (
+    render: (r, ctx) => (
       <span className="inline-flex items-center gap-1.5">
-        {r.name}
+        <button
+          type="button"
+          className="text-left font-medium hover:text-primary hover:underline"
+          onClick={() => ctx.openCandidate(r.id)}
+          title="Open details and history"
+        >
+          {r.name}
+        </button>
         {r.profile_url && (
           <a
             href={r.profile_url}

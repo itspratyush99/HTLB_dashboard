@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowDown,
+  ArrowRightLeft,
   ArrowUp,
   ArrowUpDown,
   ChevronLeft,
@@ -15,6 +16,7 @@ import {
   Loader2,
   Search,
   Upload,
+  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,9 +36,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { BASE_COLUMNS, screeningColumns, type Column } from "./columns";
+import { CandidateDrawer } from "./candidate-drawer";
+import { BASE_COLUMNS, screeningColumns, type CellContext, type Column } from "./columns";
 import { ExportDialog } from "./export-dialog";
 import { FilterPanel } from "./filter-panel";
+import { InterviewerDialog, MoveDialog } from "./move-dialog";
 
 const PAGE_SIZES = [25, 50, 100, 200];
 const ROLE_NAMES: Record<Role, string> = { ZBM: "Zonal Business Manager", HOS: "Head of States" };
@@ -78,6 +82,11 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
   // ---- dialogs
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  // Move dialog: which candidates, and whether they came from the selection or an export.
+  const [move, setMove] = useState<{ ids: string[]; heading: string; source: "selection" | "export" } | null>(null);
+  const [interviewerOpen, setInterviewerOpen] = useState(false);
+  const cellContext = useMemo<CellContext>(() => ({ openCandidate: setDrawerId }), []);
 
   // ---- columns (visibility remembered per role in this browser)
   const columns = useMemo<Column[]>(() => {
@@ -334,7 +343,16 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
             Clear selection
           </button>
           <div className="ml-auto flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled title="Comes in Phase 4">Move to stage…</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMove({ ids: [...selected], heading: "Move to stage", source: "selection" })}
+            >
+              <ArrowRightLeft /> Move to stage…
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}>
+              <Users /> Interviewer…
+            </Button>
             <Button size="sm" onClick={() => setExportOpen(true)}>
               <Download /> Export for Bulk Sender
             </Button>
@@ -367,7 +385,7 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <TableRow key={r.id} row={r} columns={visibleColumns} selected={selected.has(r.id)} onToggle={(on) => toggleRow(r.id, on)} />
+                <TableRow key={r.id} row={r} columns={visibleColumns} ctx={cellContext} selected={selected.has(r.id)} onToggle={(on) => toggleRow(r.id, on)} />
               ))}
               {!loading && !rows.length && (
                 <tr>
@@ -439,7 +457,29 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
         selectedIds={[...selected]}
         filters={filters}
         stages={stages}
+        onMoveExported={(ids) => {
+          setExportOpen(false);
+          setMove({ ids, heading: `Move the ${ids.length} exported candidate${ids.length === 1 ? "" : "s"}`, source: "export" });
+        }}
       />
+      <MoveDialog
+        open={!!move}
+        onOpenChange={(o) => !o && setMove(null)}
+        ids={move?.ids ?? []}
+        heading={move?.heading}
+        stages={stages}
+        interviewers={interviewers}
+        onMoved={(result) => {
+          // Moved candidates usually leave the current stage filter, so start a fresh selection.
+          if (result.changed) {
+            const movedIds = new Set(move?.ids ?? []);
+            setSelected((s) => new Set([...s].filter((id) => !movedIds.has(id))));
+          }
+          load();
+        }}
+      />
+      <InterviewerDialog open={interviewerOpen} onOpenChange={setInterviewerOpen} ids={[...selected]} interviewers={interviewers} onChanged={load} />
+      <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} onChanged={load} />
     </div>
   );
 }
@@ -447,11 +487,13 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
 function TableRow({
   row,
   columns,
+  ctx,
   selected,
   onToggle,
 }: {
   row: CandidateRow;
   columns: Column[];
+  ctx: CellContext;
   selected: boolean;
   onToggle: (on: boolean) => void;
 }) {
@@ -469,7 +511,7 @@ function TableRow({
       </td>
       {columns.map((c) => (
         <td key={c.key} className={cn("px-3 py-2", c.className)}>
-          {c.render(row)}
+          {c.render(row, ctx)}
         </td>
       ))}
     </tr>

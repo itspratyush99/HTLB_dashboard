@@ -10,7 +10,7 @@ export function Badge({
   color,
   style,
   ...props
-}: React.ComponentProps<"span"> & { color?: string | null }) {
+}: Omit<React.ComponentProps<"span">, "color"> & { color?: string | null }) {
   const tint = color
     ? { backgroundColor: `${color}1f`, color, borderColor: `${color}55`, ...style }
     : style;

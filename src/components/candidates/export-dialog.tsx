@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Filters } from "@/lib/candidates/filters";
@@ -29,6 +29,7 @@ export function ExportDialog({
   selectedIds,
   filters,
   stages,
+  onMoveExported,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +37,7 @@ export function ExportDialog({
   selectedIds: string[];
   filters: Filters;
   stages: Stage[];
+  onMoveExported: (ids: string[]) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -203,11 +205,14 @@ export function ExportDialog({
               duplicates={done.result.skipped.filter((s) => s.reason === "duplicate mobile")}
             />
             <p className="text-sm text-muted-foreground">
-              Your selection is kept. After sending the messages, come back and move these candidates to the next stage. (Moving
-              candidates arrives in Phase 4.)
+              Your selection is kept. Once the messages are sent, move the exported candidates to their next stage. Candidates
+              who were skipped stay where they are.
             </p>
             <DialogFooter>
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+              <Button onClick={() => onMoveExported(done.result.includedIds)} disabled={!done.result.includedIds.length}>
+                <ArrowRightLeft /> Move these {done.result.includedIds.length} exported candidates to stage…
+              </Button>
             </DialogFooter>
           </>
         )}
