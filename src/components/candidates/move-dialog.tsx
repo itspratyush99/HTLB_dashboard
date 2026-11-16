@@ -5,6 +5,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Interviewer, Stage } from "@/lib/candidates/types";
+import type { Viewer } from "@/lib/viewer";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ export function MoveDialog({
   stages,
   interviewers,
   heading = "Move to stage",
+  viewer,
   onMoved,
 }: {
   open: boolean;
@@ -76,6 +78,7 @@ export function MoveDialog({
   stages: Stage[];
   interviewers: Interviewer[];
   heading?: string;
+  viewer?: Viewer;
   onMoved: (result: MoveResult) => void;
 }) {
   const { info, error, supabase } = useSelectedInfo(open, ids);
@@ -84,13 +87,14 @@ export function MoveDialog({
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const ownInterviewer = viewer?.interviewerOnly ? viewer.interviewerId : null;
   useEffect(() => {
     if (open) {
       setStageId(null);
-      setInterviewerId(null);
+      setInterviewerId(ownInterviewer); // interviewer logins are always their own interviewer
       setConfirming(false);
     }
-  }, [open]);
+  }, [open, ownInterviewer]);
 
   const stage = stages.find((s) => s.id === stageId) ?? null;
   const interviewer = interviewers.find((i) => i.id === interviewerId) ?? null;
@@ -157,7 +161,11 @@ export function MoveDialog({
             {needsInterviewer && (
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Interviewer for {stage?.name} <span className="text-red-600">*</span></p>
-                <InterviewerPicker interviewers={activeInterviewers} value={interviewerId} onChange={(v) => setInterviewerId(typeof v === "number" ? v : null)} />
+                {ownInterviewer ? (
+                  <p className="text-sm">You (<b>{viewer?.interviewerName}</b>) stay the interviewer.</p>
+                ) : (
+                  <InterviewerPicker interviewers={activeInterviewers} value={interviewerId} onChange={(v) => setInterviewerId(typeof v === "number" ? v : null)} />
+                )}
                 <p className="text-xs text-muted-foreground">All {plural(info.length)} get this interviewer. You can change it per candidate later.</p>
               </div>
             )}

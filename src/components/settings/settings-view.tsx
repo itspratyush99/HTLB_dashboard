@@ -24,7 +24,7 @@ export interface SettingsData {
   interviewers: { id: number; name: string; color: string; is_active: boolean; candidates: number }[];
   keywords: { id: number; role: "ZBM" | "HOS"; keyword: string; whole_word: boolean }[];
   thresholds: { maxDays: number; minConversion: number };
-  team: { id: string; email: string; full_name: string; is_admin: boolean; is_active: boolean; created_at: string }[];
+  team: { id: string; email: string; full_name: string; is_admin: boolean; is_active: boolean; created_at: string; access: "full" | "interviewer"; interviewer_id: number | null }[];
   canCreateUsers: boolean;
 }
 
@@ -397,6 +397,16 @@ function Limits({ data }: { data: SettingsData }) {
 
 // ------------------------------------------------------------------ Team users
 
+type AccessChoice = "admin" | "full" | "interviewer";
+
+function AccessBadge({ p, interviewers }: { p: SettingsData["team"][number]; interviewers: SettingsData["interviewers"] }) {
+  if (!p.is_active) return <Badge color="#d03b3b">Switched off</Badge>;
+  if (p.is_admin) return <Badge color="#9a7a12"><ShieldCheck className="mr-1 size-3" />Admin</Badge>;
+  if (p.access === "interviewer")
+    return <Badge color="#1f4d36">Interviewer: {interviewers.find((i) => i.id === p.interviewer_id)?.name ?? "not linked"}</Badge>;
+  return <Badge>Team member</Badge>;
+}
+
 const randomPassword = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(12));
@@ -408,7 +418,25 @@ function Team({ data }: { data: SettingsData }) {
   const { save, pending } = useSave();
   const router = useRouter();
   const admin = data.me.is_admin;
-  const [form, setForm] = useState({ fullName: "", email: "", password: randomPassword(), isAdmin: false });
+  const [form, setForm] = useState<{ fullName: string; email: string; password: string; access: AccessChoice; interviewerId: number | null }>({
+    fullName: "", email: "", password: randomPassword(), access: "full", interviewerId: null,
+  });
+  const activeInterviewers = data.interviewers.filter((i) => i.is_active);
+  /** "Parul Sharma" → the interviewer called Parul, if there is one. */
+  const guessInterviewer = (name: string) =>
+    activeInterviewers.find((i) => name.trim().toLowerCase().split(/\s+/)[0] === i.name.trim().toLowerCase().split(/\s+/)[0])?.id ?? activeInterviewers[0]?.id ?? null;
+  const setAccess = (p: SettingsData["team"][number], choice: AccessChoice, interviewerId?: number | null) => {
+    if (choice === "interviewer") {
+      const iv = interviewerId ?? p.interviewer_id ?? guessInterviewer(p.full_name);
+      if (!iv) return toast.error("Add an interviewer in the Interviewers tab first.");
+      const name = data.interviewers.find((i) => i.id === iv)?.name;
+      return save(() => supabase.from("profiles").update({ is_admin: false, access: "interviewer", interviewer_id: iv }).eq("id", p.id), `${p.full_name} now sees only ${name}'s candidates`);
+    }
+    return save(
+      () => supabase.from("profiles").update({ is_admin: choice === "admin", access: "full", interviewer_id: null }).eq("id", p.id),
+      choice === "admin" ? `${p.full_name} is now an admin` : `${p.full_name} is now a team member (sees all candidates)`,
+    );
+  };
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [resetFor, setResetFor] = useState<{ id: string; name: string } | null>(null);
@@ -422,14 +450,18 @@ function Team({ data }: { data: SettingsData }) {
     if (!res.ok) return toast.error(res.error);
     toast.success(res.message);
     setCreated({ email: form.email.trim().toLowerCase(), password: form.password });
-    setForm({ fullName: "", email: "", password: randomPassword(), isAdmin: false });
+    setForm({ fullName: "", email: "", password: randomPassword(), access: "full", interviewerId: null });
     router.refresh();
   }
 
   return (
     <Panel
       title="Team users"
-      description={admin ? "Add people, make someone admin, switch access off (their history stays), or set a new password." : "Only admins can add people or change access. You can change your own display name."}
+      description={
+        admin
+          ? "Choose each person's access: Admin (everything, manages people, can delete), Team member (all candidates), or Interviewer (only candidates tagged with their interviewer name). Switch someone off to lock them out; their history stays."
+          : "Only admins can add people or change access. You can change your own display name."
+      }
     >
       <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full min-w-[36rem] text-sm">
@@ -449,14 +481,42 @@ function Team({ data }: { data: SettingsData }) {
                 <tr key={p.id} className={cn("border-t border-black/[0.06]", !p.is_active && "opacity-60")}>
                   <td className="py-2 pr-2">
                     {admin || self ? (
-                      <InlineName value={p.full_name} onSave={(full_name) => save(() => supabase.from("profiles").update({ full_name }).eq("id", p.id), "Name saved")} />
+                      <InlineName value={p.full_name} className="min-w-40" onSave={(full_name) => save(() => supabase.from("profiles").update({ full_name }).eq("id", p.id), "Name saved")} />
                     ) : (
                       <span className="font-medium">{p.full_name}</span>
                     )}
                   </td>
                   <td className="py-2 pr-2 text-muted-foreground">{p.email}</td>
                   <td className="py-2 pr-2">
-                    {!p.is_active ? <Badge color="#d03b3b">Switched off</Badge> : p.is_admin ? <Badge color="#9a7a12"><ShieldCheck className="mr-1 size-3" />Admin</Badge> : <Badge>Member</Badge>}
+                    {admin && !self && p.is_active ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <select
+                          className="h-8 rounded-lg border border-black/10 bg-white/80 px-2 text-sm"
+                          value={p.is_admin ? "admin" : p.access}
+                          disabled={pending}
+                          onChange={(e) => setAccess(p, e.target.value as AccessChoice)}
+                          aria-label={`Access for ${p.full_name}`}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="full">Team member: all candidates</option>
+                          <option value="interviewer">Interviewer: own candidates only</option>
+                        </select>
+                        {!p.is_admin && p.access === "interviewer" && (
+                          <select
+                            className="h-8 rounded-lg border border-black/10 bg-white/80 px-2 text-sm"
+                            value={p.interviewer_id ?? ""}
+                            disabled={pending}
+                            onChange={(e) => setAccess(p, "interviewer", Number(e.target.value))}
+                            aria-label={`Interviewer for ${p.full_name}`}
+                          >
+                            {!p.interviewer_id && <option value="">Choose…</option>}
+                            {data.interviewers.map((i) => <option key={i.id} value={i.id} disabled={!i.is_active}>{i.name}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    ) : (
+                      <AccessBadge p={p} interviewers={data.interviewers} />
+                    )}
                     {self && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
                   </td>
                   <td className="whitespace-nowrap py-2 pr-2 text-muted-foreground">{formatDate(p.created_at)}</td>
@@ -464,9 +524,6 @@ function Team({ data }: { data: SettingsData }) {
                     <td className="py-2 text-right">
                       {!self && (
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" disabled={pending || !p.is_active} onClick={() => save(() => supabase.from("profiles").update({ is_admin: !p.is_admin }).eq("id", p.id), p.is_admin ? `${p.full_name} is now a member` : `${p.full_name} is now an admin`)}>
-                            {p.is_admin ? "Remove admin" : "Make admin"}
-                          </Button>
                           <Button size="sm" variant="ghost" disabled={pending} className={p.is_active ? "text-destructive" : ""} onClick={() => save(() => supabase.from("profiles").update({ is_active: !p.is_active }).eq("id", p.id), p.is_active ? `${p.full_name} switched off` : `${p.full_name} switched back on`)}>
                             {p.is_active ? "Switch off" : "Switch on"}
                           </Button>
@@ -498,7 +555,32 @@ function Team({ data }: { data: SettingsData }) {
             <Input placeholder="Password (8+ characters)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="font-mono" />
             <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setForm({ ...form, password: randomPassword() })}>New</Button>
           </div>
-          <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.isAdmin} onCheckedChange={(v) => setForm({ ...form, isAdmin: v === true })} /> Make admin</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="h-9 rounded-lg border border-black/10 bg-white/80 px-2 text-sm"
+              value={form.access}
+              onChange={(e) => {
+                const access = e.target.value as AccessChoice;
+                setForm({ ...form, access, interviewerId: access === "interviewer" ? form.interviewerId ?? guessInterviewer(form.fullName) : null });
+              }}
+              aria-label="Access"
+            >
+              <option value="full">Team member: all candidates</option>
+              <option value="interviewer">Interviewer: own candidates only</option>
+              <option value="admin">Admin</option>
+            </select>
+            {form.access === "interviewer" && (
+              <select
+                className="h-9 rounded-lg border border-black/10 bg-white/80 px-2 text-sm"
+                value={form.interviewerId ?? ""}
+                onChange={(e) => setForm({ ...form, interviewerId: Number(e.target.value) || null })}
+                aria-label="Interviewer"
+              >
+                <option value="">Which interviewer?</option>
+                {activeInterviewers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            )}
+          </div>
           <Button type="submit" disabled={creating || !data.canCreateUsers} className="sm:col-span-2 sm:justify-self-start">
             {creating ? <Loader2 className="animate-spin" /> : <UserPlus />} Add team member
           </Button>

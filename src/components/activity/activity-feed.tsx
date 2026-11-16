@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, ChevronDown, ChevronRight, Download, Loader2, Settings, Upload, UserRound } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, ChevronRight, Download, Loader2, Settings, Trash2, Upload, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/dates";
@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CandidateDrawer } from "@/components/candidates/candidate-drawer";
+import type { Viewer } from "@/lib/viewer";
 
-type Action = "stage_change" | "interviewer_change" | "upload" | "export" | "settings_change";
+type Action = "stage_change" | "interviewer_change" | "upload" | "export" | "settings_change" | "candidates_deleted";
 
 interface Group {
   gkey: string;
@@ -49,12 +50,13 @@ const ACTIONS: [Action, string][] = [
   ["upload", "Uploads"],
   ["export", "Exports"],
   ["settings_change", "Settings changes"],
+  ["candidates_deleted", "Deletions"],
 ];
 const plural = (n: number) => `${n.toLocaleString("en-IN")} candidate${n === 1 ? "" : "s"}`;
 const str = (v: unknown) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
 
 /** Activity Log: filterable, grouped by bulk action, newest first, with "Load more". */
-export function ActivityFeed({ users, stages, interviewers }: { users: { id: string; full_name: string }[]; stages: Stage[]; interviewers: Interviewer[] }) {
+export function ActivityFeed({ users, stages, interviewers, viewer }: { users: { id: string; full_name: string }[]; stages: Stage[]; interviewers: Interviewer[]; viewer?: Viewer }) {
   const supabase = useMemo(() => createClient(), []);
   const [filters, setFilters] = useState<FeedFilters>({});
   const [rows, setRows] = useState<Group[]>([]);
@@ -116,7 +118,10 @@ export function ActivityFeed({ users, stages, interviewers }: { users: { id: str
         </Button>
       )}
 
-      <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} onChanged={() => fetchPage(0)} />
+      {viewer?.interviewerOnly && (
+        <p className="-mt-1 text-xs text-muted-foreground">You see your own actions and those about candidates assigned to you.</p>
+      )}
+      <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} viewer={viewer} onChanged={() => fetchPage(0)} />
     </div>
   );
 }
@@ -139,7 +144,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
   const d = g.details ?? {};
   const who = <b>{g.user_name ?? "System"}</b>;
   const expandable = (g.bulk_action_id && g.candidate_count > 1) || (g.action === "export" && Array.isArray(d.candidate_ids) && d.candidate_ids.length > 0);
-  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings }[g.action];
+  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings, candidates_deleted: Trash2 }[g.action];
 
   const singleName =
     g.candidate_count === 1 && g.first_candidate_id ? (
@@ -183,6 +188,14 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
       <>
         {who} exported <b>{plural(Number(d.exported ?? 0))}</b> for the bulk sender: <span className="font-mono text-xs">{str(d.file_name)}</span>
         {d.tags && d.tags !== "none" ? <> · Tags: {str(d.tags)}</> : null}
+      </>
+    );
+  } else if (g.action === "candidates_deleted") {
+    const names = Array.isArray(d.names) ? (d.names as string[]) : [];
+    text = (
+      <>
+        {who} <span className="font-medium text-destructive">deleted</span> {plural(Number(d.count ?? 0))}
+        {names.length > 0 ? <>: {names.slice(0, 5).join(", ")}{names.length > 5 ? ` and ${names.length - 5} more` : ""}</> : d.names_erased ? " (names removed from the log at their request)" : ""}
       </>
     );
   } else {

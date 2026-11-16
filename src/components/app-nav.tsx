@@ -22,6 +22,7 @@ import {
 import { signOut } from "@/app/actions/auth";
 import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import type { Viewer } from "@/lib/viewer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,22 +33,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 /** Main navigation, in the order from the brief. */
-const NAV = [
+const NAV: { href: string; label: string; icon: typeof Users; fullOnly?: boolean }[] = [
   { href: "/zbm", label: "ZBM", icon: Users },
   { href: "/hos", label: "HOS", icon: UserRound },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/uploads", label: "Upload History", icon: History },
+  { href: "/uploads", label: "Upload History", icon: History, fullOnly: true },
   { href: "/activity", label: "Activity Log", icon: Activity },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Settings", icon: Settings, fullOnly: true },
 ];
 
-type Props = { user: { full_name: string; email: string; is_admin: boolean } };
+type Props = { user: { full_name: string; email: string; is_admin: boolean }; viewer?: Viewer };
 
 const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-export function AppNav({ user }: Props) {
+export function AppNav({ user, viewer }: Props) {
   const pathname = usePathname();
+  // Interviewer logins only see their own candidates: no uploads or settings.
+  const items = NAV.filter((n) => !(n.fullOnly && viewer?.interviewerOnly));
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]); // close the phone menu after navigating
 
@@ -73,7 +76,7 @@ export function AppNav({ user }: Props) {
 
         {/* Desktop navigation */}
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex">
-          {NAV.map(({ href, label }) => (
+          {items.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
@@ -95,7 +98,7 @@ export function AppNav({ user }: Props) {
             <ChevronDown className="size-4 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <UserLabel user={user} />
+            <UserLabel user={user} viewer={viewer} />
             <DropdownMenuSeparator />
             <form action={signOut}>
               <DropdownMenuItem asChild>
@@ -123,7 +126,7 @@ export function AppNav({ user }: Props) {
               </div>
               <DialogPrimitive.Description className="sr-only">Main navigation</DialogPrimitive.Description>
               <nav className="grid grid-cols-2 gap-1.5">
-                {NAV.map(({ href, label, icon: Icon }) => (
+                {items.map(({ href, label, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}
@@ -166,7 +169,7 @@ function Avatar({ initials }: { initials: string }) {
   );
 }
 
-function UserLabel({ user }: Props) {
+function UserLabel({ user, viewer }: Props) {
   return (
     <DropdownMenuLabel>
       <div className="font-medium">{user.full_name}</div>
@@ -175,6 +178,9 @@ function UserLabel({ user }: Props) {
         <div className="mt-1 flex items-center gap-1 text-xs font-normal text-gold-deep">
           <ShieldCheck className="size-3.5" /> Admin
         </div>
+      )}
+      {viewer?.interviewerOnly && (
+        <div className="mt-1 text-xs font-normal text-muted-foreground">Interviewer access: {viewer.interviewerName ?? "not linked"}</div>
       )}
     </DropdownMenuLabel>
   );

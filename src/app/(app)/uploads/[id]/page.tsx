@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireFullMember } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import type { FlaggedRecord, NoteRecord, UnassignedRecord } from "@/lib/naukri/import";
 import { PageHeader } from "@/components/page-header";
@@ -24,6 +24,7 @@ export default async function UploadDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ page?: string }>;
 }) {
+  await requireFullMember(); // interviewers can't open this page
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const page = Math.max(1, Number((await searchParams).page) || 1);

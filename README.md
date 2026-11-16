@@ -58,8 +58,9 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 4 | `0004_moves_and_history.sql` | Stage moves, interviewers, history, Activity Log |
 | 5 | `0005_dashboard_analytics.sql` | Dashboard and Analytics |
 | 6 | `0006_settings.sql` | Editable Settings and team-user safety rules |
+| 7 | `0007_access_levels_and_delete.sql` | Access levels (Admin / Team member / Interviewer) and admin delete |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4 and 6. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6 and 7. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -119,6 +120,10 @@ Whenever you receive a new version:
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
 
+### Adding access levels and delete (if you already run the final version)
+1. Run **`0007_access_levels_and_delete.sql`** in the SQL Editor. Everyone keeps full access until an admin changes it.
+2. Upload the new files to GitHub and click **Commit changes**.
+
 ### Upgrading from Phase 5 to this final version
 1. Run **`0006_settings.sql`** in the SQL Editor.
 2. In **Vercel → Project → Settings → Environment Variables**, add **`SUPABASE_SERVICE_ROLE_KEY`** (the secret key from 1.5). Tick all environments and click **Save**.
@@ -154,10 +159,29 @@ For running on your own computer, copy `.env.example` to `.env.local` and fill i
 2. Enter their email and a password, and tick **Auto Confirm User**.
 3. Set their name in **Settings → Team users**.
 
-### Managing access
-**Admins and members:**
-- **Admins** can add people, change access, and reset passwords.
-- **Everyone** can use every other part of the panel, including the other Settings tabs. Each person can change their own display name.
+### Access levels
+An admin sets each person's access in **Settings → Team users → Access**:
+
+| Access | Sees | Can |
+|---|---|---|
+| **Admin** | Everything | Everything a team member can, plus add people, change access, reset passwords, and **delete candidates** |
+| **Team member** | All candidates | Upload, filter, export, move stages, assign interviewers, edit Settings (except Team users) |
+| **Interviewer** | **Only candidates tagged with their interviewer name** (e.g. Parul) in ZBM / HOS, Dashboard, Analytics and Activity Log | Filter, export and move the stage of their own candidates. They can't upload, open Settings or Upload History, reassign interviewers, or delete |
+
+**Setting someone up as an interviewer:**
+1. Make sure their name exists in **Settings → Interviewers**.
+2. Choose **Interviewer: own candidates only**. The matching interviewer is picked automatically ("Parul Sharma" → Parul); change it if needed.
+
+**Rules for interviewer access:**
+- **Who interviews whom** is decided by admins and team members when they move candidates to 1:1 Aligned, or with **Interviewer…**.
+- **A candidate reassigned to someone else** disappears from the first interviewer's view.
+- **These limits are enforced by the database itself**, so an interviewer can't get around them.
+
+**Making someone an admin:**
+- Choose **Admin** in their Access dropdown.
+- Nobody can remove their own admin access, and there is always at least one active admin.
+
+Each person can change their own display name.
 
 **Removing someone without losing their history:**
 - In **Settings → Team users**, click **Switch off**. They're locked out immediately, and everything they did stays in the history.
@@ -166,9 +190,16 @@ For running on your own computer, copy `.env.example` to `.env.local` and fill i
 **Forgotten password:**
 - In **Settings → Team users**, click the 🔑 key icon and choose **Set password**, then share the new password privately.
 
-**Safety rules:**
-- Nobody can remove their own admin access.
-- There is always at least one active admin.
+### Deleting candidates (admins only)
+1. **Select the candidates.** In ZBM / HOS, select them, or open one candidate's panel.
+2. **Click Delete….** You'll see the list of people being deleted.
+3. **If the candidate asked for their data to be removed**, tick **Also remove their names from the Activity Log**.
+4. **Type the number** of candidates, then click **Delete permanently**.
+
+**What happens:**
+- Their details are removed for everyone, **permanently**. The free Supabase plan has no backups, so export them first if you might need them.
+- The Activity Log records who deleted how many (and their names, unless you ticked the box).
+- Their earlier history lines stay, unlinked.
 
 ---
 
@@ -320,6 +351,8 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 | "Can't reach the database" at login | The Supabase project is paused. See section 9. Otherwise, check your internet connection. |
 | "Wrong email or password" | Check the address. An admin can set a new password in Settings → Team users. |
 | "Your access is switched off" | An admin can click **Switch on** in Settings → Team users. |
+| An interviewer sees no candidates | No candidates are tagged with their interviewer yet, or their login is linked to the wrong interviewer. Check **Settings → Team users → Access**. |
+| No **Delete…** button | Only admins can delete. |
 | A page says a function "does not exist" | A SQL file wasn't run. Run the missing `supabase/migrations` file(s) in order. |
 | Settings: "Adding users needs SUPABASE_SERVICE_ROLE_KEY" | Add that variable in Vercel (section 4), then redeploy. |
 | The bulk sender rejects the CSV, or numbers look like `9.19963E+11` | The file was opened and saved in Excel. Export again and upload it untouched. |
@@ -346,7 +379,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0006: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0007: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions

@@ -29,7 +29,13 @@ async function requireAdmin(): Promise<string | null> {
 const NO_KEY =
   "Adding users from the panel needs the SUPABASE_SERVICE_ROLE_KEY setting in Vercel (see README → Team users). Until then, add users in Supabase → Authentication → Users.";
 
-export async function createTeamUser(input: { fullName: string; email: string; password: string; isAdmin: boolean }): Promise<Result> {
+export async function createTeamUser(input: {
+  fullName: string;
+  email: string;
+  password: string;
+  access: "admin" | "full" | "interviewer";
+  interviewerId: number | null;
+}): Promise<Result> {
   const denied = await requireAdmin();
   if (denied) return { ok: false, error: denied };
   const admin = adminClient();
@@ -40,6 +46,7 @@ export async function createTeamUser(input: { fullName: string; email: string; p
   if (!fullName) return { ok: false, error: "Enter the person's name." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid email address." };
   if (input.password.length < 8) return { ok: false, error: "The password must be at least 8 characters." };
+  if (input.access === "interviewer" && !input.interviewerId) return { ok: false, error: "Choose which interviewer this login belongs to." };
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -51,7 +58,15 @@ export async function createTeamUser(input: { fullName: string; email: string; p
     return { ok: false, error: /already|registered|exists/i.test(error.message) ? `${email} already has an account.` : error.message };
   }
   // The database creates their profile automatically; set the name/admin flag explicitly.
-  await admin.from("profiles").update({ full_name: fullName, is_admin: input.isAdmin }).eq("id", data.user.id);
+  await admin
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      is_admin: input.access === "admin",
+      access: input.access === "interviewer" ? "interviewer" : "full",
+      interviewer_id: input.access === "interviewer" ? input.interviewerId : null,
+    })
+    .eq("id", data.user.id);
   revalidatePath("/settings");
   return { ok: true, message: `${fullName} can now log in with ${email}.` };
 }

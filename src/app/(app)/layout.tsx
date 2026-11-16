@@ -1,5 +1,5 @@
 import { LogOut, ShieldAlert } from "lucide-react";
-import { getCurrentProfile } from "@/lib/supabase/server";
+import { getCurrentProfile, toViewer } from "@/lib/supabase/server";
 import { signOut } from "@/app/actions/auth";
 import { AppNav } from "@/components/app-nav";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
-      <AppNav user={profile} />
+      <AppNav user={profile} viewer={toViewer(profile)} />
       <main className="mx-auto max-w-[1600px] px-3 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-8">{children}</main>
     </div>
   );

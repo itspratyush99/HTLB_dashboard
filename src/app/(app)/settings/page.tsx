@@ -1,4 +1,4 @@
-import { createClient, getCurrentProfile } from "@/lib/supabase/server";
+import { createClient, getCurrentProfile, requireFullMember } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/page-header";
 import { SettingsView, type SettingsData } from "@/components/settings/settings-view";
 
@@ -6,6 +6,7 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  await requireFullMember(); // interviewers can't open this page
   const supabase = await createClient();
   const [me, stages, interviewers, keywords, settings, team, stageCounts] = await Promise.all([
     getCurrentProfile(),
@@ -13,7 +14,7 @@ export default async function SettingsPage() {
     supabase.from("interviewers").select("id, name, color, is_active").order("name"),
     supabase.from("role_keywords").select("id, role, keyword, whole_word").order("role").order("keyword"),
     supabase.from("app_settings").select("key, value"),
-    supabase.from("profiles").select("id, email, full_name, is_admin, is_active, created_at").order("created_at"),
+    supabase.from("profiles").select("id, email, full_name, is_admin, is_active, created_at, access, interviewer_id").order("created_at"),
     supabase.rpc("dashboard_stats"),
   ]);
 
@@ -38,7 +39,7 @@ export default async function SettingsPage() {
     interviewers: (interviewers.data ?? []).map((i) => ({ ...i, candidates: perInterviewer[i.id] ?? 0 })),
     keywords: keywords.data ?? [],
     thresholds: { maxDays: setting("lag_max_days_in_stage", 3), minConversion: setting("lag_min_conversion_pct", 30) },
-    team: team.data ?? [],
+    team: (team.data ?? []).map((p) => ({ ...p, access: p.access ?? "full", interviewer_id: p.interviewer_id ?? null })),
     canCreateUsers: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   };
 

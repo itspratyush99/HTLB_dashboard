@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarDays, Sparkles, Users } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentProfile, toViewer } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -23,11 +23,15 @@ const roleLink = (role: string, f: object) => `/${role.toLowerCase()}?f=${encode
 /** Dashboard: one column per role with live counts. Every number links to the matching candidates. */
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("dashboard_stats");
+  const [{ data, error }, profile] = await Promise.all([supabase.rpc("dashboard_stats"), getCurrentProfile()]);
+  const viewer = toViewer(profile);
 
   return (
     <>
-      <PageHeader title="Dashboard" description={`Live counts · ${formatDate(new Date())} (IST). "This week" starts on Monday.`} />
+      <PageHeader
+        title="Dashboard"
+        description={`${viewer.interviewerOnly ? `Your candidates as interviewer (${viewer.interviewerName ?? "not linked"}) · ` : ""}Live counts · ${formatDate(new Date())} (IST). "This week" starts on Monday.`}
+      />
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800">
           Couldn&apos;t load the dashboard: {error.message}

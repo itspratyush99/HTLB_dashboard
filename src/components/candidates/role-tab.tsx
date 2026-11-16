@@ -16,6 +16,7 @@ import {
   Filter,
   Loader2,
   Search,
+  Trash2,
   Upload,
   Users,
   X,
@@ -42,13 +43,16 @@ import { CandidateDrawer } from "./candidate-drawer";
 import { BASE_COLUMNS, screeningColumns, type CellContext, type Column } from "./columns";
 import { ExportDialog } from "./export-dialog";
 import { FilterPanel } from "./filter-panel";
+import { DeleteDialog } from "./delete-dialog";
 import { InterviewerDialog, MoveDialog } from "./move-dialog";
+import type { Viewer } from "@/lib/viewer";
 
 const PAGE_SIZES = [25, 50, 100, 200];
 const ROLE_NAMES: Record<Role, string> = { ZBM: "Zonal Business Manager", HOS: "Head of States" };
 
 interface Props {
   role: Role;
+  viewer: Viewer;
   stages: Stage[];
   interviewers: Interviewer[];
   options: FilterOptions;
@@ -59,7 +63,7 @@ interface Props {
  * row selection (including "select all filtered results") and the bulk-sender export.
  * Filtering, sorting and paging happen in the database, so it stays fast with thousands of candidates.
  */
-export function RoleTab({ role, stages, interviewers, options }: Props) {
+export function RoleTab({ role, viewer, stages, interviewers, options }: Props) {
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
 
@@ -88,6 +92,7 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
   // Move dialog: which candidates, and whether they came from the selection or an export.
   const [move, setMove] = useState<{ ids: string[]; heading: string; source: "selection" | "export" } | null>(null);
   const [interviewerOpen, setInterviewerOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const cellContext = useMemo<CellContext>(() => ({ openCandidate: setDrawerId }), []);
 
   // ---- columns (visibility remembered per role in this browser)
@@ -239,10 +244,19 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
             )}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
-        </Button>
+        {!viewer.interviewerOnly && (
+          <Button asChild variant="outline">
+            <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
+          </Button>
+        )}
       </div>
+
+      {viewer.interviewerOnly && (
+        <div className="rounded-2xl border border-gold/40 bg-gold-soft/80 px-4 py-2.5 text-sm backdrop-blur-xl">
+          You&apos;re seeing only the candidates assigned to you as interviewer
+          {viewer.interviewerName ? <> (<b>{viewer.interviewerName}</b>)</> : null}. An admin decides who interviews whom.
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -352,9 +366,16 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
             >
               <ArrowRightLeft /> Move to stage…
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}>
-              <Users /> Interviewer…
-            </Button>
+            {!viewer.interviewerOnly && (
+              <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}>
+                <Users /> Interviewer…
+              </Button>
+            )}
+            {viewer.isAdmin && (
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
+                <Trash2 /> Delete…
+              </Button>
+            )}
             <Button size="sm" onClick={() => setExportOpen(true)}>
               <Download /> Export for Bulk Sender
             </Button>
@@ -487,6 +508,7 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
         onOpenChange={(o) => !o && setMove(null)}
         ids={move?.ids ?? []}
         heading={move?.heading}
+        viewer={viewer}
         stages={stages}
         interviewers={interviewers}
         onMoved={(result) => {
@@ -499,7 +521,17 @@ export function RoleTab({ role, stages, interviewers, options }: Props) {
         }}
       />
       <InterviewerDialog open={interviewerOpen} onOpenChange={setInterviewerOpen} ids={[...selected]} interviewers={interviewers} onChanged={load} />
-      <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} onChanged={load} />
+      <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} viewer={viewer} onChanged={load} />
+      <DeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        ids={[...selected]}
+        onDeleted={(gone) => {
+          const g = new Set(gone);
+          setSelected((s) => new Set([...s].filter((id) => !g.has(id))));
+          load();
+        }}
+      />
     </div>
   );
 }

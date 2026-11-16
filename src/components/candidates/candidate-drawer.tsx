@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, Download, ExternalLink, Loader2, Upload, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, Download, ExternalLink, Loader2, Trash2, Upload, UserRound, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { describeEvent, type HistoryEvent } from "@/lib/candidates/history";
@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogTitle, SheetContent } from "@/components/ui/dialog";
+import { DeleteDialog } from "./delete-dialog";
 import { InterviewerDialog, MoveDialog } from "./move-dialog";
+import type { Viewer } from "@/lib/viewer";
 
 type Detail = CandidateRow & {
   raw: Record<string, string | null>;
@@ -27,12 +29,14 @@ export function CandidateDrawer({
   onClose,
   stages,
   interviewers,
+  viewer,
   onChanged,
 }: {
   candidateId: string | null;
   onClose: () => void;
   stages: Stage[];
   interviewers: Interviewer[];
+  viewer?: Viewer;
   onChanged: () => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -41,6 +45,7 @@ export function CandidateDrawer({
   const [error, setError] = useState<string | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [interviewerOpen, setInterviewerOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!candidateId) return;
@@ -97,10 +102,17 @@ export function CandidateDrawer({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => setMoveOpen(true)}><ArrowRightLeft /> Move stage…</Button>
-                <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}><Users /> Interviewer…</Button>
+                {!viewer?.interviewerOnly && (
+                  <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}><Users /> Interviewer…</Button>
+                )}
                 {detail.profile_url && (
                   <Button size="sm" variant="outline" asChild>
                     <a href={detail.profile_url} target="_blank" rel="noopener noreferrer"><ExternalLink /> Naukri profile</a>
+                  </Button>
+                )}
+                {viewer?.isAdmin && (
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
+                    <Trash2 /> Delete…
                   </Button>
                 )}
               </div>
@@ -213,9 +225,19 @@ export function CandidateDrawer({
               stages={stages}
               interviewers={interviewers}
               heading={`Move ${detail.name}`}
+              viewer={viewer}
               onMoved={afterChange}
             />
             <InterviewerDialog open={interviewerOpen} onOpenChange={setInterviewerOpen} ids={[detail.id]} interviewers={interviewers} onChanged={afterChange} />
+            <DeleteDialog
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+              ids={[detail.id]}
+              onDeleted={() => {
+                onChanged();
+                onClose();
+              }}
+            />
           </>
         )}
       </SheetContent>

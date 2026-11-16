@@ -25,17 +25,63 @@ export async function createClient() {
   );
 }
 
+export interface CurrentProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  access: "full" | "interviewer";
+  interviewer_id: number | null;
+  interviewer_name: string | null;
+}
+
 /** The logged-in team member's profile, or null if not logged in / not an active member. */
-export async function getCurrentProfile() {
+export async function getCurrentProfile(): Promise<CurrentProfile | null> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase
+  const first = await supabase
     .from("profiles")
-    .select("id, email, full_name, is_admin, is_active")
+    .select("id, email, full_name, is_admin, is_active, access, interviewer_id")
     .eq("id", user.id)
     .maybeSingle();
-  return data && data.is_active ? data : null;
+  let data = first.data;
+  if (first.error) {
+    // Before 0007_access_levels_and_delete.sql is run, the access columns don't exist yet.
+    ({ data } = await supabase.from("profiles").select("id, email, full_name, is_admin, is_active").eq("id", user.id).maybeSingle());
+  }
+  if (!data || !data.is_active) return null;
+  const access = (data.access ?? "full") as CurrentProfile["access"];
+  let interviewer_name: string | null = null;
+  if (access === "interviewer" && data.interviewer_id) {
+    const { data: i } = await supabase.from("interviewers").select("name").eq("id", data.interviewer_id).maybeSingle();
+    interviewer_name = i?.name ?? null;
+  }
+  return { ...data, access, interviewer_id: data.interviewer_id ?? null, interviewer_name } as CurrentProfile;
+}
+
+/** What the logged-in person may see and do. Passed from server pages to client components. */
+export type { Viewer } from "@/lib/viewer";
+import type { Viewer } from "@/lib/viewer";
+
+/** What the logged-in person may see and do (see lib/viewer.ts). */
+export function toViewer(p: CurrentProfile | null): Viewer {
+  const interviewerOnly = !!p && !p.is_admin && p.access === "interviewer";
+  return {
+    isAdmin: !!p?.is_admin,
+    interviewerOnly,
+    interviewerId: interviewerOnly ? p!.interviewer_id : null,
+    interviewerName: interviewerOnly ? p!.interviewer_name : null,
+  };
+}
+
+/** For pages interviewers may not open (uploads, settings): send them to the Dashboard. */
+export async function requireFullMember() {
+  const { redirect } = await import("next/navigation");
+  const viewer = toViewer(await getCurrentProfile());
+  if (viewer.interviewerOnly) redirect("/dashboard");
+  return viewer;
 }

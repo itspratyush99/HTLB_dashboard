@@ -93,13 +93,13 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
             </button>
           ))}
         </div>
-        <label className="flex flex-col gap-1 text-xs font-medium">
+        {interviewers.length > 0 && <label className="flex flex-col gap-1 text-xs font-medium">
           Interviewer
           <select className="h-9 min-w-36 rounded-lg border border-black/10 bg-white/80 px-2 text-sm font-normal" value={interviewerId} onChange={(e) => setInterviewerId(e.target.value)}>
             <option value="">All candidates</option>
             {interviewers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-        </label>
+        </label>}
         {loading && <Loader2 className="mb-2 size-4 animate-spin text-muted-foreground" />}
         {data && (
           <p className="w-full pb-1 text-xs text-muted-foreground xl:ml-auto xl:w-auto">

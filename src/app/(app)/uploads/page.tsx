@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireFullMember } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ export const metadata = { title: "Upload History" };
 const PAGE_SIZE = 50;
 
 export default async function UploadsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  await requireFullMember(); // interviewers can't open this page
   const page = Math.max(1, Number((await searchParams).page) || 1);
   const supabase = await createClient();
   const { data: uploads, count, error } = await supabase

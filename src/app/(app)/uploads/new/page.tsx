@@ -1,3 +1,4 @@
+import { requireFullMember } from "@/lib/supabase/server";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -6,7 +7,8 @@ import { UploadWizard } from "@/components/upload/upload-wizard";
 
 export const metadata = { title: "Upload Naukri file" };
 
-export default function NewUploadPage() {
+export default async function NewUploadPage() {
+  await requireFullMember(); // interviewers can't open this page
   return (
     <>
       <PageHeader

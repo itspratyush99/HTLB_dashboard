@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentProfile, toViewer } from "@/lib/supabase/server";
 import type { FilterOptions, Interviewer, Role, Stage } from "@/lib/candidates/types";
 import { RoleTab } from "./role-tab";
 
@@ -17,7 +17,8 @@ const EMPTY_OPTIONS: FilterOptions = {
 /** Server part of a role tab: loads stages, interviewers and filter pick-lists, then hands over to the table. */
 export async function RolePage({ role }: { role: Role }) {
   const supabase = await createClient();
-  const [stages, interviewers, options] = await Promise.all([
+  const [profile, stages, interviewers, options] = await Promise.all([
+    getCurrentProfile(),
     supabase.from("stages").select("id, name, color, position, requires_interviewer").order("position"),
     supabase.from("interviewers").select("id, name, color, is_active").order("name"),
     supabase.rpc("candidate_filter_options", { p_role: role }),
@@ -40,6 +41,7 @@ export async function RolePage({ role }: { role: Role }) {
     <Suspense fallback={<Loader2 className="mx-auto mt-16 size-5 animate-spin text-muted-foreground" />}>
       <RoleTab
         role={role}
+        viewer={toViewer(profile)}
         stages={(stages.data ?? []) as Stage[]}
         interviewers={(interviewers.data ?? []) as Interviewer[]}
         options={{ ...EMPTY_OPTIONS, ...((options.data ?? {}) as Partial<FilterOptions>) }}
