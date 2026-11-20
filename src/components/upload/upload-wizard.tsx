@@ -195,6 +195,7 @@ export function UploadWizard() {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   ZBM {step.result.insertedByRole.ZBM} · HOS {step.result.insertedByRole.HOS}
+                  {step.result.completed > 0 && <> · details filled in for {step.result.completed} added earlier from a test file</>}
                 </p>
                 {step.result.failed && (
                   <p className="mt-2 text-sm text-amber-800">

@@ -714,6 +714,7 @@ function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow;
           <Badge color={r.stage_color}>{r.stage_name}</Badge>
           {r.tag_name && <Badge color={r.tag_color ?? undefined}>{r.tag_name}</Badge>}
           {r.rescheduled && <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge>}
+          {r.source === "test_file" && <Badge color="#64748b">From test file</Badge>}
           {r.interviewer_name && <Badge color={r.interviewer_color}>{r.interviewer_name}</Badge>}
         </div>
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

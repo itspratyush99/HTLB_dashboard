@@ -193,7 +193,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
       <>
         {who} uploaded test results{" "}
         {g.upload_id ? <Link className="font-medium text-primary hover:underline" href={`/uploads/${g.upload_id}`}>{str(d.file_name)}</Link> : str(d.file_name)}:{" "}
-        <b>{str(d.moved)} moved</b> to {str(d.target_stage)}, {str(d.already_moved)} already moved, {str(d.not_found)} not in the tracker
+        <b>{str(d.moved)} moved</b>{Number(d.added) > 0 ? <>, <b>{str(d.added)} added</b> to {str(d.added_role)}</> : null} → {str(d.target_stage)}, {str(d.already_moved)} already moved, {str(d.not_found)} {Number(d.added) > 0 ? "not added" : "not in the tracker"}
       </>
     );
   } else if (g.action === "upload") {
@@ -202,6 +202,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
         {who} uploaded{" "}
         {g.upload_id ? <Link className="font-medium text-primary hover:underline" href={`/uploads/${g.upload_id}`}>{str(d.file_name)}</Link> : str(d.file_name)}: <b>{str(d.new_added)} new</b>
         {" "}(ZBM {str(d.zbm_added)} · HOS {str(d.hos_added)}), {str(d.duplicates_skipped)} duplicates skipped
+        {Number(d.completed) > 0 ? <>, details filled in for <b>{str(d.completed)}</b> from a test file</> : null}
         {d.failed ? <span className="text-amber-700"> · stopped part-way</span> : null}
       </>
     );

@@ -74,7 +74,7 @@ export const BASE_COLUMNS: Column[] = [
     label: "Tag",
     sort: "tag",
     defaultVisible: true,
-    render: (r, ctx) => (r.rescheduled ? <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge> : r.tag_name ? <Badge color={r.tag_color}>{r.tag_name}</Badge> : r.stage_id === ctx.shortlistedStageId ? <span className="text-xs text-muted-foreground">No tag</span> : <Dash />),
+    render: (r, ctx) => (r.rescheduled ? <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge> : r.tag_name ? <Badge color={r.tag_color}>{r.tag_name}</Badge> : r.stage_id === ctx.shortlistedStageId ? <span className="text-xs text-muted-foreground">No tag</span> : r.source === "test_file" ? <Badge color="#64748b">From test file</Badge> : <Dash />),
   },
   {
     key: "interviewer",

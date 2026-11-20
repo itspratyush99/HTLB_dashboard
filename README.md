@@ -44,7 +44,7 @@ The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business M
    - **Region:** **South Asia (Mumbai)**.
 3. Click **Create new project** and wait 1–2 minutes.
 
-### 1.2 Create the database (9 SQL files, in order)
+### 1.2 Create the database (10 SQL files, in order)
 The files are in `supabase/migrations/`. For **each file, in this order**:
 1. Open **SQL Editor → New query**.
 2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
@@ -61,8 +61,9 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 7 | `0007_access_levels_and_delete.sql` | Access levels (Admin / Team member / Interviewer) and admin delete |
 | 8 | `0008_shortlist_tags_and_test_results.sql` | Shortlist tags (72h / 48h / 24h / Hold) and the test-results upload |
 | 9 | `0009_rescheduled_tag.sql` | "Rescheduled" tag for 1:1 interviews |
+| 10 | `0010_add_from_test_file.sql` | Add people from the test file who aren't in the tracker |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8 and 9. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9 and 10. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -121,6 +122,10 @@ Whenever you receive a new version:
 1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
+
+### Adding people from the test file (if you already run 0009)
+1. Run **`0010_add_from_test_file.sql`** in the SQL Editor (click **Run query** if the warning appears). No candidates change.
+2. Upload the new files to GitHub and click **Commit changes**.
 
 ### Adding the Rescheduled tag and the logout fix (if you already run 0008)
 1. Run **`0009_rescheduled_tag.sql`** in the SQL Editor (click **Run query** if the warning appears). No candidates change.
@@ -294,7 +299,9 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
   - Matches by mobile number. Someone in both ZBM and HOS moves in both.
   - Moves everyone in Shortlisted (any tag) to the stage chosen in **Settings → Shortlist tags → Test-results upload**.
   - Leaves alone anyone already in that stage or further, so uploading the same cumulative file again is safe.
-  - *Not in the tracker* lists people whose mobile isn't in the panel (e.g. they applied with another number). Search them by name and move them by hand.
+  - **People not in the tracker** (by mobile) are **added** to the role in the file name (HTLB-**ZBM**-… or HTLB-**HOS**-…; choose it if the name doesn't say), straight into the test-cleared stage. They get the name, mobile, city, CTC and designation from the file, and show a **From test file** badge. Untick *Add people who aren't in the tracker* to only move people.
+  - **Same name in tracker:** if someone with the same name is already in that role (usually the same person who used another number on Naukri), they are **not added** unless you tick *Add these anyway*. Check them and move the existing person by hand.
+  - **Later Naukri upload:** when a Naukri row has the same role and mobile as a "from test file" person, it **fills in their details** (email, experience, company, etc.) instead of adding them again. Their stage, tags and history stay. The preview shows them under *From test file*.
   - **Pass mark (optional):** empty means everyone in the file moves. Type e.g. 60 to move only those who scored at least 60%.
   - Each upload is saved in Upload History (type *Test results*) and the Activity Log.
 - **Analytics → Which reminder works:** of the candidates who left Shortlisted in the period, how many had each tag at that moment.
@@ -398,7 +405,8 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 | Upload says "doesn't look like a Naukri export" | Use the candidate export from Naukri. The file needs at least *Job Title*, *Name* and a phone or email column. |
 | An upload shows "Stopped part-way" | Upload the same file again. Saved candidates are skipped as exact duplicates, and only the missing ones are added. |
 | No **Upload test results** button, or no tag chips | Run `0008_shortlist_tags_and_test_results.sql`. Interviewer logins never see them. |
-| Test upload: many people "Not in the tracker" | Normal for a cumulative file: it includes people from older Naukri files or another number. Check a few by name. |
+| Test upload adds many people the first time | Normal: the file holds every result since October. Re-uploading it later adds nobody twice (matched by mobile). |
+| Dashboard "New today" jumped after a test upload | People added from the test file count as new that day. |
 | Test upload: "No Mobile column" | The file needs a column called Mobile (or Phone / Mobile Number). |
 | Log out does nothing | Fixed in this version. Update the site, then press Ctrl+F5 (or close and reopen the tab) once. |
 | Vercel build failed | **Vercel → Deployments →** click the failed one and read the red error. Usually a file was missed in the GitHub upload, so upload the full folder again. |
@@ -422,7 +430,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0009: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0010: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions

@@ -64,6 +64,8 @@ export interface ImportRequest {
   fileName: string;
   fileSize: number;
   candidates: (CandidateInput & { role: Role; rowNumber: number })[];
+  /** People added earlier from a test file: fill in their details from these rows. */
+  complete: { id: string; stage: string | null; row: number; candidate: CandidateInput & { role: Role } }[];
   questions: ScreeningQuestion[];
   counts: {
     total_rows: number;
@@ -84,6 +86,7 @@ export interface ImportRequest {
 export interface ImportResult {
   uploadId: string;
   inserted: number;
+  completed: number;
   insertedByRole: Record<Role, number>;
   failed: string | null; // message if the import stopped part-way
 }
@@ -144,10 +147,29 @@ export async function runImport(
     onProgress(inserted, req.candidates.length);
   }
 
-  // 4. Final counts + history entry.
+  // 4. Fill in the details of people who were added from a test-results file.
+  let completed = 0;
+  if (!failed && req.complete.length) {
+    for (let i = 0; i < req.complete.length; i += INSERT_BATCH_SIZE) {
+      const batch = req.complete.slice(i, i + INSERT_BATCH_SIZE).map((c) => ({ ...c.candidate, id: c.id }));
+      const { data, error } = await supabase.rpc("complete_test_candidates", { p_rows: batch });
+      if (error) {
+        failed = `New candidates were added, but filling in the details of people from the test file stopped after ${completed}: ${error.message}`;
+        break;
+      }
+      completed += Number(data ?? 0);
+    }
+  }
+
+  // 5. Final counts + history entry.
   await supabase
     .from("uploads")
-    .update({ status: failed ? "failed" : "completed", new_added: inserted, failure_message: failed })
+    .update({
+      status: failed ? "failed" : "completed",
+      new_added: inserted,
+      failure_message: failed,
+      summary: { completed: req.complete.map((c) => ({ id: c.id, row: c.row, name: c.candidate.name, role: c.candidate.role, phone: c.candidate.primary_phone, stage: c.stage })) },
+    })
     .eq("id", upload.id);
 
   const rolesTouched = (["ZBM", "HOS"] as Role[]).filter((r) => insertedByRole[r] > 0);
@@ -161,6 +183,7 @@ export async function runImport(
       zbm_added: insertedByRole.ZBM,
       hos_added: insertedByRole.HOS,
       duplicates_skipped: req.counts.duplicates_skipped,
+      completed,
       flagged_added: req.counts.flagged_added,
       flagged_skipped: req.counts.flagged_skipped,
       errors: req.errors.length,
@@ -168,5 +191,5 @@ export async function runImport(
     },
   });
 
-  return { uploadId: upload.id, inserted, insertedByRole, failed };
+  return { uploadId: upload.id, inserted, completed, insertedByRole, failed };
 }

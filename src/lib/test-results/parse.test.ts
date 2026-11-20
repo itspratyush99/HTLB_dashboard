@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { readSheet } from "@/lib/naukri/read";
-import { parseTestFile, planTestResults, type FoundCandidate } from "./parse";
+import { ctcToLakhs, parseTestFile, planNewPeople, planTestResults, roleFromFileName, toNewCandidate, type FoundCandidate } from "./parse";
 
 const csv = (text: string) => {
   const b = new TextEncoder().encode(text);
@@ -14,7 +14,8 @@ const header = '"Candidate ID","Name","Mobile","Access approved","Assessment sta
 describe("reading a test-results file", () => {
   it("finds the columns and cleans mobiles", () => {
     const f = csv(header + '"HTLB-1","Ravi","+91 98765 43210","Yes","Submitted","95"\n"HTLB-2","Asha","12345","Yes","Submitted","40"\n');
-    expect(f.rows).toEqual([{ rowNumber: 2, name: "Ravi", phone: "9876543210", percentage: 95, status: "Submitted", candidateId: "HTLB-1" }]);
+    expect(f.rows).toMatchObject([{ rowNumber: 2, name: "Ravi", phone: "9876543210", percentage: 95, status: "Submitted", candidateId: "HTLB-1" }]);
+    expect(f.rows).toHaveLength(1);
     expect(f.errors[0]).toMatchObject({ rowNumber: 3, name: "Asha" });
   });
   it("keeps a repeated mobile once", () => {
@@ -68,3 +69,28 @@ for (const [label, file] of [["HOS", "samples/HTLB-HOS-assessment-results.csv"],
     });
   });
 }
+
+describe("adding people who aren't in the tracker", () => {
+  const full = '"Candidate ID","Name","Mobile","Percentage","Current City","Current CTC (₹ LPA)","Current Designation"\n';
+  const f = csv(full + '"1","Sharad  Gupta","8218654588","80","Chandigarh","10.35","TSM"\n"2","Md Irshad","7777090297","100","Mumbai","3600000","Divisional Head"\n"3","","9000000003","90","","",""\n');
+  it("reads city, CTC (lakhs or rupees) and designation", () => {
+    expect(f.rows[0]).toMatchObject({ city: "Chandigarh", designation: "TSM", ctcLakhs: 10.35 });
+    expect(f.rows[1].ctcLakhs).toBe(36);
+    expect(ctcToLakhs("abc")).toBeNull();
+    expect(ctcToLakhs("12 LPA")).toBe(12);
+  });
+  it("adds new names, holds back same names and rows without a name", () => {
+    const same = [{ id: "x", name: "Md Irshad", name_norm: "md irshad", primary_phone: "9999999999", stage_name: "Shortlisted" }];
+    const p = planNewPeople(f.rows, same, false);
+    expect(p.toAdd.map((r) => r.name)).toEqual(["Sharad Gupta"]);
+    expect(p.sameName.map((s) => s.row.name)).toEqual(["Md Irshad"]);
+    expect(p.noName).toHaveLength(1);
+    expect(planNewPeople(f.rows, same, true).toAdd).toHaveLength(2);
+    expect(toNewCandidate(f.rows[0])).toMatchObject({ name: "Sharad Gupta", name_norm: "sharad gupta", primary_phone: "8218654588", salary_lakhs: 10.35, current_location: "Chandigarh" });
+  });
+  it("detects the role from the file name", () => {
+    expect(roleFromFileName("HTLB-ZBM-assessment-results.csv")).toBe("ZBM");
+    expect(roleFromFileName("HTLB-HOS-assessment-results (1).csv")).toBe("HOS");
+    expect(roleFromFileName("results.csv")).toBeNull();
+  });
+});

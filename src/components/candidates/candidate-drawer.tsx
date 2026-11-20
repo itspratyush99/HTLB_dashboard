@@ -111,6 +111,9 @@ export function CandidateDrawer({
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge color={detail.stage_color} className="px-2.5 py-1 text-sm">{detail.stage_name}</Badge>
                 {detail.tag_name && <Badge color={detail.tag_color} className="px-2.5 py-1 text-sm">Tag {detail.tag_name}</Badge>}
+                {detail.source === "test_file" && (
+                  <Badge color="#64748b" className="px-2.5 py-1 text-sm" title="Added from a test-results file. The next Naukri upload with this mobile fills in the other details.">From test file</Badge>
+                )}
                 {detail.rescheduled && <Badge color={RESCHEDULED_COLOR} className="px-2.5 py-1 text-sm">Rescheduled</Badge>}
                 {detail.interviewer_name && <Badge color={detail.interviewer_color} className="px-2.5 py-1 text-sm">{detail.interviewer_name}</Badge>}
                 <span className="text-xs text-muted-foreground">in this stage since {formatDate(detail.stage_changed_at)}</span>

@@ -114,6 +114,14 @@ describe("duplicate rules", () => {
     expect(classifyRows([key({ name_norm: "ravi k" })], existing)[0].kind).toBe("possible");
     expect(classifyRows([key({ primary_phone: "9000000000" })], existing)[0].kind).toBe("possible");
   });
+  it("completes people added from a test file (same role + mobile) instead of flagging them", () => {
+    const tf: ExistingCandidate = { id: "t", role: "ZBM", name: "Sharad Gupta", name_norm: "sharad gupta", email_norm: null, primary_phone: "8218654588", stage_name: "JD Cleared", created_at: "", origin: "test_file" };
+    const rows = [key({ name_norm: "sharad kumar gupta", email_norm: "s@x.com", primary_phone: "8218654588" }), key({ name_norm: "sharad kumar gupta", email_norm: "s@x.com", primary_phone: "8218654588", rowNumber: 3 })];
+    const out = classifyRows(rows, [tf]);
+    expect(out[0]).toEqual({ kind: "complete", candidate: tf });
+    expect(out[1].kind).toBe("exact"); // listed twice: completed once, the repeat is skipped
+    expect(classifyRows([key({ role: "HOS", primary_phone: "8218654588" })], [tf])[0].kind).toBe("new"); // other role
+  });
   it("checks each role separately", () => {
     expect(classifyRows([key({ role: "HOS" })], existing)[0].kind).toBe("new");
   });

@@ -6,7 +6,7 @@
  *   "Mobile" (required), "Name", "Percentage", "Assessment status", "Candidate ID".
  * Pure functions: no database, so they can be unit-tested.
  */
-import { parsePhones, plainText, type CellValue } from "@/lib/naukri/clean";
+import { normaliseName, parsePhones, plainText, type CellValue } from "@/lib/naukri/clean";
 import type { SheetData } from "@/lib/naukri/read";
 import type { Role } from "@/lib/naukri/types";
 
@@ -17,6 +17,12 @@ export interface TestRow {
   percentage: number | null;
   status: string | null;
   candidateId: string | null;
+  // Extra details, used when the person is added to the tracker from this file.
+  city: string | null;
+  designation: string | null;
+  ctcText: string | null;
+  ctcLakhs: number | null;
+  raw: Record<string, string | null>;
 }
 
 export interface TestFile {
@@ -44,6 +50,9 @@ export function parseTestFile(sheet: SheetData): TestFile {
     percentage: find(h, [/^percentage$/, /percent/, /^%$/, /score/]),
     status: find(h, [/assessment status/, /^status$/]),
     candidateId: find(h, [/candidate id/, /^id$/]),
+    city: find(h, [/current city/, /^city$/, /current location/, /location/]),
+    designation: find(h, [/current designation/, /designation/]),
+    ctc: find(h, [/current ctc/, /ctc/, /salary/]),
   };
   if (!col.mobile) {
     return { rows: [], errors: [], duplicatesInFile: 0, missingColumns: ["Mobile"], hasPercentage: false };
@@ -76,6 +85,11 @@ export function parseTestFile(sheet: SheetData): TestFile {
       percentage: Number.isFinite(pct) ? pct : null,
       status: plainText(v(col.status)),
       candidateId: plainText(v(col.candidateId)),
+      city: plainText(v(col.city)),
+      designation: plainText(v(col.designation)),
+      ctcText: plainText(v(col.ctc)),
+      ctcLakhs: ctcToLakhs(plainText(v(col.ctc))),
+      raw: Object.fromEntries(h.map((k) => [k, plainText(r.values[k])])),
     });
   }
   return { rows, errors, duplicatesInFile, missingColumns: [], hasPercentage: !!col.percentage };
@@ -138,4 +152,78 @@ export function planTestResults(
     }
   }
   return plan;
+}
+
+/**
+ * "Current CTC (₹ LPA)": most people type lakhs (10.35), some type rupees (3600000).
+ * Numbers of 1,000 or more are treated as rupees and converted to lakhs.
+ */
+export function ctcToLakhs(text: string | null): number | null {
+  if (!text) return null;
+  const n = parseFloat(text.replace(/[,₹\s]/g, "").replace(/(lpa|lakhs?|l)$/i, ""));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const lakhs = n >= 1000 ? n / 100000 : n;
+  return lakhs > 0 && lakhs < 100000 ? Math.round(lakhs * 100) / 100 : null;
+}
+
+/** "HTLB-ZBM-assessment-results.csv" → ZBM. Null when the name has neither (or both). */
+export function roleFromFileName(fileName: string): Role | null {
+  const zbm = /zbm/i.test(fileName);
+  const hos = /hos/i.test(fileName);
+  return zbm === hos ? null : zbm ? "ZBM" : "HOS";
+}
+
+/** A saved candidate with the same name (from find_candidates_by_name). */
+export interface SameNameCandidate {
+  id: string;
+  name: string;
+  name_norm: string;
+  primary_phone: string | null;
+  stage_name: string;
+}
+
+export interface NewPeoplePlan {
+  toAdd: TestRow[]; // not in the tracker → added from the file
+  sameName: { row: TestRow; matches: SameNameCandidate[] }[]; // same name already in this role → probably the same person
+  noName: TestRow[]; // no name in the file → can't be added
+}
+
+/**
+ * People not in the tracker (by mobile). They are added to the chosen role, except:
+ * • rows with no name, and
+ * • rows whose name already exists in that role (probably the same person who used another mobile on
+ *   Naukri). These are only added when includeSameName is ticked.
+ */
+export function planNewPeople(notFound: TestRow[], sameNames: SameNameCandidate[], includeSameName: boolean): NewPeoplePlan {
+  const byName = new Map<string, SameNameCandidate[]>();
+  for (const c of sameNames) byName.set(c.name_norm, [...(byName.get(c.name_norm) ?? []), c]);
+  const plan: NewPeoplePlan = { toAdd: [], sameName: [], noName: [] };
+  for (const row of notFound) {
+    if (!row.name) {
+      plan.noName.push(row);
+      continue;
+    }
+    const matches = byName.get(normaliseName(row.name)) ?? [];
+    if (matches.length) {
+      plan.sameName.push({ row, matches });
+      if (includeSameName) plan.toAdd.push(row);
+    } else plan.toAdd.push(row);
+  }
+  return plan;
+}
+
+/** What is sent to the database for each person added from the test file. */
+export function toNewCandidate(row: TestRow) {
+  const name = (row.name ?? "").replace(/\s+/g, " ").trim();
+  return {
+    name,
+    name_norm: normaliseName(name),
+    primary_phone: row.phone,
+    phone_raw: row.raw ? (Object.entries(row.raw).find(([k]) => /mobile|phone/i.test(k))?.[1] ?? row.phone) : row.phone,
+    current_location: row.city,
+    designation: row.designation,
+    salary_text: row.ctcText ? `${row.ctcText} (test file)` : null,
+    salary_lakhs: row.ctcLakhs,
+    raw: row.raw,
+  };
 }

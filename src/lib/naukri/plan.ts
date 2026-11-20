@@ -21,6 +21,7 @@ export interface Plan {
   newRows: PlannedRow[];
   exactRows: PlannedRow[];
   possibleRows: PlannedRow[];
+  completeRows: PlannedRow[]; // fill in details of people added from a test file
   unassignedRows: PlannedRow[]; // role could not be detected (whatever the user chose)
   toImport: PlannedRow[];
   counts: {
@@ -65,6 +66,7 @@ export function buildPlan(
   const newRows = rows.filter((r) => r.classification?.kind === "new");
   const exactRows = rows.filter((r) => r.classification?.kind === "exact");
   const possibleRows = rows.filter((r) => r.classification?.kind === "possible");
+  const completeRows = rows.filter((r) => r.classification?.kind === "complete");
   const unassignedRows = rows.filter((r) => r.parsed.candidate.role === null);
   const decision = (r: PlannedRow) => flagDecisions[r.parsed.rowNumber] ?? "skip";
   const toImport = [...newRows, ...possibleRows.filter((r) => decision(r) === "add")].sort(
@@ -76,6 +78,7 @@ export function buildPlan(
     newRows,
     exactRows,
     possibleRows,
+    completeRows,
     unassignedRows,
     toImport,
     counts: {
@@ -129,6 +132,12 @@ export function toImportRequest(
     fileName: file.name,
     fileSize: file.size,
     candidates: plan.toImport.map((r) => ({ ...r.parsed.candidate, role: r.role!, rowNumber: r.parsed.rowNumber })),
+    complete: plan.completeRows.map((r) => ({
+      id: r.classification?.kind === "complete" ? r.classification.candidate.id : "",
+      stage: r.classification?.kind === "complete" ? r.classification.candidate.stage_name : null,
+      row: r.parsed.rowNumber,
+      candidate: { ...r.parsed.candidate, role: r.role! },
+    })),
     questions: parse.questions,
     counts: {
       total_rows: plan.counts.total,

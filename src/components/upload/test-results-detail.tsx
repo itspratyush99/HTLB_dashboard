@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Person = { id?: string; name: string | null; role?: string; phone: string; from_tag?: string | null; percentage?: number | null; stage?: string; row?: number; in_tracker?: boolean };
+type Person = { id?: string; name: string | null; role?: string; phone: string; city?: string | null; existing?: { phone: string | null; stage: string }[]; from_tag?: string | null; percentage?: number | null; stage?: string; row?: number; in_tracker?: boolean };
 interface Summary {
   target_stage?: string;
   pass_mark?: number | null;
@@ -17,6 +17,9 @@ interface Summary {
   other_stage?: Person[];
   below_pass_mark?: Person[];
   not_found?: Person[];
+  added?: Person[];
+  added_role?: string | null;
+  same_name?: Person[];
   duplicates_in_file?: number;
 }
 
@@ -40,9 +43,9 @@ export function TestResultsDetail({ upload }: { upload: Record<string, unknown> 
         {([
           ["Rows in file", upload.total_rows],
           ["Moved", moved.length, "text-emerald-700"],
+          [`Added${s.added_role ? ` to ${s.added_role}` : ""}`, s.added?.length ?? 0, "text-emerald-700"],
           ["Already moved / further", (s.already_moved?.length ?? 0) + (s.other_stage?.length ?? 0)],
-          ["Not in tracker", s.not_found?.length ?? 0],
-          ["Below pass mark", s.below_pass_mark?.length ?? 0],
+          [s.added ? "Not added" : "Not in tracker", upload.unassigned_count],
           ["No valid mobile", upload.error_count],
         ] as [string, unknown, string?][]).map(([label, value, cls]) => (
           <div key={label} className="glass rounded-2xl p-3">
@@ -59,11 +62,18 @@ export function TestResultsDetail({ upload }: { upload: Record<string, unknown> 
       <Tabs defaultValue="moved">
         <TabsList>
           <TabsTrigger value="moved">Moved ({moved.length})</TabsTrigger>
+          {s.added && <TabsTrigger value="added">Added ({s.added.length})</TabsTrigger>}
+          {s.same_name && s.same_name.length > 0 && <TabsTrigger value="same">Same name in tracker ({s.same_name.length})</TabsTrigger>}
           <TabsTrigger value="already">Already moved ({(s.already_moved?.length ?? 0) + (s.other_stage?.length ?? 0)})</TabsTrigger>
-          <TabsTrigger value="notfound">Not in tracker ({s.not_found?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="notfound">{s.added ? "No name" : "Not in tracker"} ({s.not_found?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="below">Below pass mark ({s.below_pass_mark?.length ?? 0})</TabsTrigger>
         </TabsList>
         <TabsContent value="moved"><Simple head={["Name", "Role", "Mobile", "Score", "Tag when moved"]} rows={moved.map((m) => [m.name, role(m.role), m.phone, pct(m.percentage), m.from_tag ?? "No tag"])} /></TabsContent>
+        <TabsContent value="added"><Simple head={["Name", "Role", "Mobile", "Score", "City"]} rows={(s.added ?? []).map((m) => [m.name, role(m.role), m.phone, pct(m.percentage), m.city])} /></TabsContent>
+        <TabsContent value="same">
+          <p className="mb-3 text-sm text-muted-foreground">Not in the tracker by mobile, but the same name was already in {s.added_role}. Added only if &quot;Add these anyway&quot; was ticked.</p>
+          <Simple head={["Name", "Mobile in test file", "Score", "Already in tracker", "Added?"]} rows={(s.same_name ?? []).map((m) => [m.name, m.phone, pct(m.percentage), (m.existing ?? []).map((e) => `${e.phone ?? "no mobile"} · ${e.stage}`).join(", "), (s.added ?? []).some((a) => a.phone === m.phone) ? "Yes" : "No"])} />
+        </TabsContent>
         <TabsContent value="already"><Simple head={["Name", "Role", "Mobile", "Stage at upload"]} rows={[...(s.already_moved ?? []), ...(s.other_stage ?? [])].map((m) => [m.name, role(m.role), m.phone, m.stage])} /></TabsContent>
         <TabsContent value="notfound"><Simple head={["Row", "Name", "Mobile", "Score"]} rows={(s.not_found ?? []).map((m) => [m.row, m.name, m.phone, pct(m.percentage)])} /></TabsContent>
         <TabsContent value="below"><Simple head={["Name", "Mobile", "Score", "In tracker"]} rows={(s.below_pass_mark ?? []).map((m) => [m.name, m.phone, pct(m.percentage), m.in_tracker ? "Yes" : "No"])} /></TabsContent>

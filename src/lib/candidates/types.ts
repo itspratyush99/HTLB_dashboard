@@ -43,6 +43,7 @@ export interface CandidateRow {
   interviewer_name: string | null;
   interviewer_color: string | null;
   shortlist_tag_id: number | null;
+  source?: "naukri" | "test_file"; // test_file = added from a test-results file, details pending Naukri
   rescheduled?: boolean; // 1:1 interview rescheduled (only in 1:1 Aligned)
   rescheduled_at?: string | null;
   tag_name: string | null; // 72h / 48h / 24h / Hold (Shortlisted only)
