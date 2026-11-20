@@ -7,10 +7,12 @@ import { ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import type { CandidateRow } from "@/lib/candidates/types";
 import { Badge } from "@/components/ui/badge";
+import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
 
 /** Things a cell can do, e.g. open the candidate detail panel. */
 export interface CellContext {
   openCandidate: (id: string) => void;
+  shortlistedStageId: number | null; // tags only exist in this stage
 }
 
 export interface Column {
@@ -66,6 +68,13 @@ export const BASE_COLUMNS: Column[] = [
     sort: "stage",
     defaultVisible: true,
     render: (r) => <Badge color={r.stage_color}>{r.stage_name}</Badge>,
+  },
+  {
+    key: "tag",
+    label: "Tag",
+    sort: "tag",
+    defaultVisible: true,
+    render: (r, ctx) => (r.rescheduled ? <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge> : r.tag_name ? <Badge color={r.tag_color}>{r.tag_name}</Badge> : r.stage_id === ctx.shortlistedStageId ? <span className="text-xs text-muted-foreground">No tag</span> : <Dash />),
   },
   {
     key: "interviewer",

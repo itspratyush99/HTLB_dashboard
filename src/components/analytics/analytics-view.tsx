@@ -33,6 +33,7 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
   const [from, setFrom] = useState(() => addDays(istToday(), -29));
   const [interviewerId, setInterviewerId] = useState<string>("");
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [tagMoves, setTagMoves] = useState<{ from_tag: string; to_stage: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +52,11 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
         setLoading(false);
         if (error) toast.error("Couldn't load analytics", { description: error.message });
         else setData(data as AnalyticsData);
+      });
+    supabase
+      .rpc("tag_conversion", { p_role: role === "BOTH" ? null : role, p_from: from, p_to: to })
+      .then(({ data, error }) => {
+        if (!cancelled && !error) setTagMoves((data ?? []) as { from_tag: string; to_stage: string; count: number }[]);
       });
     return () => {
       cancelled = true;
@@ -118,6 +124,7 @@ export function AnalyticsView({ interviewers }: { interviewers: Interviewer[] })
             <Funnel data={data} />
             <TimeInStage data={data} />
           </div>
+          {interviewers.length > 0 && <TagMoves rows={tagMoves} />}
           <Stuck data={data} interviewerId={interviewerId} />
         </div>
       )}
@@ -410,6 +417,50 @@ function Stuck({ data, interviewerId }: { data: AnalyticsData; interviewerId: st
             </tr>
           </tbody>
         </table></div>
+      )}
+    </Card>
+  );
+}
+
+/** Which reminder works: candidates who left Shortlisted in the period, grouped by the tag they had then. */
+function TagMoves({ rows }: { rows: { from_tag: string; to_stage: string; count: number }[] }) {
+  const byStage = new Map<string, { from_tag: string; count: number }[]>();
+  rows.forEach((r) => byStage.set(r.to_stage, [...(byStage.get(r.to_stage) ?? []), { from_tag: r.from_tag, count: Number(r.count) }]));
+  const order = (t: string) => ["No tag", "72h", "48h", "24h", "Hold"].indexOf(t) + 1 || 99;
+  return (
+    <Card
+      title="Which reminder works"
+      subtitle="Candidates who left Shortlisted in this period (e.g. after the test-results upload), by the tag they had at that moment."
+    >
+      {!rows.length ? (
+        <p className="text-sm text-muted-foreground">Nobody left Shortlisted in this period yet. This fills in as you upload test results.</p>
+      ) : (
+        <div className="space-y-5">
+          {[...byStage.entries()].map(([stage, list]) => {
+            const total = list.reduce((a, r) => a + r.count, 0);
+            const max = Math.max(1, ...list.map((r) => r.count));
+            return (
+              <div key={stage}>
+                <p className="mb-2 text-sm">
+                  → <b>{stage}</b>: {total} candidate{total === 1 ? "" : "s"}
+                </p>
+                <div className="space-y-1">
+                  {[...list].sort((a, b) => order(a.from_tag) - order(b.from_tag)).map((r) => (
+                    <div key={r.from_tag} className="grid grid-cols-[5rem_1fr_5rem] items-center gap-2 text-sm" title={`${r.count} had tag ${r.from_tag}`}>
+                      <span className="text-muted-foreground">{r.from_tag}</span>
+                      <span className="h-3 overflow-hidden rounded bg-muted/60">
+                        <span className="block h-full rounded-r" style={{ width: `${(r.count / max) * 100}%`, backgroundColor: SERIES, minWidth: 4 }} />
+                      </span>
+                      <span className="text-right tabular-nums">
+                        {r.count} <span className="text-xs text-muted-foreground">({Math.round((r.count / total) * 100)}%)</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </Card>
   );

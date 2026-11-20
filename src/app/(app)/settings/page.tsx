@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   await requireFullMember(); // interviewers can't open this page
   const supabase = await createClient();
-  const [me, stages, interviewers, keywords, settings, team, stageCounts] = await Promise.all([
+  const [me, stages, interviewers, keywords, settings, team, stageCounts, tags] = await Promise.all([
     getCurrentProfile(),
     supabase.from("stages").select("id, name, color, position, is_default, requires_interviewer").order("position"),
     supabase.from("interviewers").select("id, name, color, is_active").order("name"),
@@ -16,12 +16,16 @@ export default async function SettingsPage() {
     supabase.from("app_settings").select("key, value"),
     supabase.from("profiles").select("id, email, full_name, is_admin, is_active, created_at, access, interviewer_id").order("created_at"),
     supabase.rpc("dashboard_stats"),
+    supabase.from("shortlist_tags").select("id, name, color, position").order("position"),
   ]);
 
   // Candidates per stage (both roles), from the dashboard function.
   const perStage: Record<number, number> = {};
-  for (const role of Object.values((stageCounts.data ?? {}) as Record<string, { stages: { id: number; count: number }[] }>))
+  const perTag: Record<number, number> = {};
+  for (const role of Object.values((stageCounts.data ?? {}) as Record<string, { stages: { id: number; count: number }[]; shortlist_tags?: { id: number; count: number }[] }>)) {
     for (const s of role.stages) perStage[s.id] = (perStage[s.id] ?? 0) + s.count;
+    for (const t of role.shortlist_tags ?? []) perTag[t.id] = (perTag[t.id] ?? 0) + t.count;
+  }
   // Candidates currently tagged with each interviewer (count-only queries; no rows downloaded).
   const perInterviewer: Record<number, number> = {};
   await Promise.all(
@@ -41,6 +45,8 @@ export default async function SettingsPage() {
     thresholds: { maxDays: setting("lag_max_days_in_stage", 3), minConversion: setting("lag_min_conversion_pct", 30) },
     team: (team.data ?? []).map((p) => ({ ...p, access: p.access ?? "full", interviewer_id: p.interviewer_id ?? null })),
     canCreateUsers: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    tags: (tags.data ?? []).map((t) => ({ ...t, candidates: perTag[t.id] ?? 0 })),
+    testStageId: Number(settings.data?.find((s) => s.key === "test_cleared_stage_id")?.value) || null,
   };
 
   return (

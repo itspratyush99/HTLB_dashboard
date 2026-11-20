@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import type { Filters, ScreeningFilter } from "@/lib/candidates/filters";
 import { cleanFilters } from "@/lib/candidates/filters";
 import { formatDate } from "@/lib/dates";
-import type { FilterOptions, Interviewer, Stage } from "@/lib/candidates/types";
+import type { FilterOptions, Interviewer, ShortlistTag, Stage } from "@/lib/candidates/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +26,7 @@ export function FilterPanel({
   stages,
   interviewers,
   options,
+  tags = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +35,7 @@ export function FilterPanel({
   stages: Stage[];
   interviewers: Interviewer[];
   options: FilterOptions;
+  tags?: ShortlistTag[];
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,6 +47,7 @@ export function FilterPanel({
             stages={stages}
             interviewers={interviewers}
             options={options}
+            tags={tags}
             onApply={(f) => {
               onApply(f);
               onOpenChange(false);
@@ -62,12 +65,14 @@ function PanelBody({
   stages,
   interviewers,
   options,
+  tags,
 }: {
   initial: Filters;
   onApply: (f: Filters) => void;
   stages: Stage[];
   interviewers: Interviewer[];
   options: FilterOptions;
+  tags: ShortlistTag[];
 }) {
   const [d, setD] = useState<Filters>(initial);
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => setD((s) => ({ ...s, [key]: value }));
@@ -93,6 +98,22 @@ function PanelBody({
           </div>
         </Section>
 
+        {tags.length > 0 && (
+          <Section title="Shortlisted tag">
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              <CheckRow checked={d.tag_ids?.includes("none") ?? false} onChange={(on) => set("tag_ids", toggle(d.tag_ids, "none", on))}>
+                <span className="text-sm">No tag</span>
+              </CheckRow>
+              {tags.map((t) => (
+                <CheckRow key={t.id} checked={d.tag_ids?.includes(String(t.id)) ?? false} onChange={(on) => set("tag_ids", toggle(d.tag_ids, String(t.id), on))}>
+                  <Badge color={t.color}>{t.name}</Badge>
+                </CheckRow>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Tags only exist in Shortlisted, so a tag filter shows Shortlisted candidates only.</p>
+          </Section>
+        )}
+
         <Section title="Interviewer">
           <div className="flex flex-wrap gap-x-4 gap-y-1.5">
             {interviewers.map((i) => (
@@ -104,6 +125,18 @@ function PanelBody({
               <span className="text-sm text-muted-foreground">No interviewer</span>
             </CheckRow>
           </div>
+        </Section>
+
+        <Section title="1:1 rescheduled">
+          <Segmented<"all" | "yes" | "no">
+            value={d.rescheduled ?? "all"}
+            onChange={(v) => set("rescheduled", v === "all" ? undefined : v)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "yes", label: "Rescheduled" },
+              { value: "no", label: "Not rescheduled" },
+            ]}
+          />
         </Section>
 
         <Section title="Dates">

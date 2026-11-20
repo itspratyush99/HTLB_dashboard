@@ -8,6 +8,7 @@ import {
   ArrowRightLeft,
   ArrowUp,
   ArrowUpDown,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Columns3,
@@ -16,6 +17,7 @@ import {
   Filter,
   Loader2,
   Search,
+  Tag as TagIcon,
   Trash2,
   Upload,
   Users,
@@ -24,7 +26,8 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cleanFilters, decodeFilters, describeFilters, encodeFilters, removeFilter, type Filters } from "@/lib/candidates/filters";
-import type { CandidateRow, FilterOptions, Interviewer, Role, SearchResult, Stage } from "@/lib/candidates/types";
+import type { CandidateRow, FilterOptions, Interviewer, Role, SearchResult, ShortlistTag, Stage } from "@/lib/candidates/types";
+import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +47,7 @@ import { BASE_COLUMNS, screeningColumns, type CellContext, type Column } from ".
 import { ExportDialog } from "./export-dialog";
 import { FilterPanel } from "./filter-panel";
 import { DeleteDialog } from "./delete-dialog";
+import { TagDialog } from "./tag-dialog";
 import { InterviewerDialog, MoveDialog } from "./move-dialog";
 import type { Viewer } from "@/lib/viewer";
 
@@ -53,6 +57,7 @@ const ROLE_NAMES: Record<Role, string> = { ZBM: "Zonal Business Manager", HOS: "
 interface Props {
   role: Role;
   viewer: Viewer;
+  tags: ShortlistTag[];
   stages: Stage[];
   interviewers: Interviewer[];
   options: FilterOptions;
@@ -63,7 +68,8 @@ interface Props {
  * row selection (including "select all filtered results") and the bulk-sender export.
  * Filtering, sorting and paging happen in the database, so it stays fast with thousands of candidates.
  */
-export function RoleTab({ role, viewer, stages, interviewers, options }: Props) {
+export function RoleTab({ role, viewer, tags, stages, interviewers, options }: Props) {
+  const shortlistedStageId = stages.find((s) => s.is_default)?.id ?? null;
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
 
@@ -93,7 +99,12 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
   const [move, setMove] = useState<{ ids: string[]; heading: string; source: "selection" | "export" } | null>(null);
   const [interviewerOpen, setInterviewerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const cellContext = useMemo<CellContext>(() => ({ openCandidate: setDrawerId }), []);
+  const cellContext = useMemo<CellContext>(() => ({ openCandidate: setDrawerId, shortlistedStageId }), [shortlistedStageId]);
+  // Tag dialog: which candidates, the suggested tag, and the title.
+  const [tagDialog, setTagDialog] = useState<{ ids: string[]; suggested?: number | "none" | null; heading?: string } | null>(null);
+  const [tagCounts, setTagCounts] = useState<{ total: number; none: number; tags: (ShortlistTag & { count: number })[] } | null>(null);
+  const [reschedCounts, setReschedCounts] = useState<ReschedCount[]>([]);
+  const [reschedSaving, setReschedSaving] = useState(false);
 
   // ---- columns (visibility remembered per role in this browser)
   const columns = useMemo<Column[]>(() => {
@@ -169,7 +180,13 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
     }
     setError(null);
     setResult(data as SearchResult);
-  }, [supabase, role, filters, sort, desc, page, pageSize]);
+    if (!viewer.interviewerOnly) {
+      const counts = await supabase.rpc("shortlist_tag_counts", { p_role: role });
+      if (!counts.error) setTagCounts(counts.data as typeof tagCounts);
+    }
+    const rc = await supabase.rpc("rescheduled_counts", { p_role: role });
+    if (!rc.error) setReschedCounts((rc.data as ReschedCount[]) ?? []);
+  }, [supabase, role, filters, sort, desc, page, pageSize, viewer.interviewerOnly]);
 
   useEffect(() => {
     load();
@@ -213,6 +230,24 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
       return next;
     });
 
+  async function markRescheduled(value: boolean) {
+    setReschedSaving(true);
+    const { data, error } = await supabase.rpc("set_rescheduled", { p_ids: [...selected], p_value: value });
+    setReschedSaving(false);
+    if (error) {
+      toast.error("Couldn't save", { description: error.message });
+      return;
+    }
+    const r = data as { changed: number; unchanged: number; not_in_stage: number };
+    const stageName = reschedCounts.map((c) => c.stage_name).join(" / ") || "1:1 Aligned";
+    const extra = [
+      r.unchanged ? `${r.unchanged} already ${value ? "rescheduled" : "not rescheduled"}` : null,
+      r.not_in_stage ? `${r.not_in_stage} skipped (not in ${stageName})` : null,
+    ].filter(Boolean).join(" · ");
+    toast.success(value ? `${r.changed} marked Rescheduled` : `Rescheduled removed from ${r.changed}`, { description: extra || undefined });
+    load();
+  }
+
   async function selectAllFiltered() {
     setSelectingAll(true);
     const { data, error } = await supabase.rpc("candidate_ids", { p_role: role, p_filters: cleanFilters(filters) });
@@ -221,7 +256,7 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
     setSelected((s) => new Set([...s, ...((data as string[]) ?? [])]));
   }
 
-  const chips = describeFilters(filters, stages, interviewers);
+  const chips = describeFilters(filters, stages, interviewers, tags);
   const total = result?.total ?? 0;
   const roleTotal = result?.role_total ?? 0;
   const from = total ? (page - 1) * pageSize + 1 : 0;
@@ -314,6 +349,43 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
         {loading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
       </div>
 
+      {/* Quick tag buttons for the daily reminder routine (Shortlisted only) */}
+      {!viewer.interviewerOnly && shortlistedStageId !== null && tagCounts && (
+        <ShortlistBar
+          counts={tagCounts}
+          filters={filters}
+          shortlistedStageId={shortlistedStageId}
+          stageName={stages.find((s) => s.id === shortlistedStageId)?.name ?? "Shortlisted"}
+          onPick={(tagKey) => {
+            setSelected(new Set()); // start clean so groups are never mixed by accident
+            setFilters(cleanFilters({ q: searchText, stage_ids: [shortlistedStageId], tag_ids: tagKey ? [tagKey] : undefined }));
+            setPage(1);
+          }}
+          onSelectAll={selectAllFiltered}
+          selectingAll={selectingAll}
+          totalShown={total}
+          allSelected={allFilteredSelected}
+        />
+      )}
+
+      {/* Quick buttons for 1:1 Aligned: everyone (interviewers too) can mark rescheduled interviews */}
+      {reschedCounts.map((rc) => (
+        <ReschedBar
+          key={rc.stage_id}
+          counts={rc}
+          filters={filters}
+          onPick={(value) => {
+            setSelected(new Set());
+            setFilters(cleanFilters({ q: searchText, stage_ids: [rc.stage_id], rescheduled: value }));
+            setPage(1);
+          }}
+          onSelectAll={selectAllFiltered}
+          selectingAll={selectingAll}
+          totalShown={total}
+          allSelected={allFilteredSelected}
+        />
+      ))}
+
       {/* Active filter chips */}
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -366,6 +438,31 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
             >
               <ArrowRightLeft /> Move to stage…
             </Button>
+            {reschedCounts.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={reschedSaving}>
+                    {reschedSaving ? <Loader2 className="animate-spin" /> : <CalendarClock />} Rescheduled…
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    1:1 interview of the {selected.size} selected
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => void markRescheduled(true)}>
+                    <CalendarClock /> Mark as Rescheduled
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void markRescheduled(false)}>
+                    <X /> Remove Rescheduled
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {!viewer.interviewerOnly && (
+              <Button size="sm" variant="outline" onClick={() => setTagDialog({ ids: [...selected] })}>
+                <TagIcon /> Tag…
+              </Button>
+            )}
             {!viewer.interviewerOnly && (
               <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}>
                 <Users /> Interviewer…
@@ -490,6 +587,7 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
         stages={stages}
         interviewers={interviewers}
         options={options}
+        tags={viewer.interviewerOnly ? [] : tags}
       />
       <ExportDialog
         open={exportOpen}
@@ -498,6 +596,13 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
         selectedIds={[...selected]}
         filters={filters}
         stages={stages}
+        tags={tags}
+        shortlistedStageId={shortlistedStageId}
+        canTag={!viewer.interviewerOnly}
+        onTagExported={(ids, suggested, heading) => {
+          setExportOpen(false);
+          setTagDialog({ ids, suggested, heading });
+        }}
         onMoveExported={(ids) => {
           setExportOpen(false);
           setMove({ ids, heading: `Move the ${ids.length} exported candidate${ids.length === 1 ? "" : "s"}`, source: "export" });
@@ -521,6 +626,21 @@ export function RoleTab({ role, viewer, stages, interviewers, options }: Props) 
         }}
       />
       <InterviewerDialog open={interviewerOpen} onOpenChange={setInterviewerOpen} ids={[...selected]} interviewers={interviewers} onChanged={load} />
+      <TagDialog
+        open={!!tagDialog}
+        onOpenChange={(o) => !o && setTagDialog(null)}
+        ids={tagDialog?.ids ?? []}
+        suggested={tagDialog?.suggested}
+        heading={tagDialog?.heading}
+        tags={tags}
+        shortlistedStageId={shortlistedStageId}
+        onChanged={() => {
+          // The tagged candidates leave the current tag group: start a fresh selection.
+          const done = new Set(tagDialog?.ids ?? []);
+          setSelected((s) => new Set([...s].filter((id) => !done.has(id))));
+          load();
+        }}
+      />
       <CandidateDrawer candidateId={drawerId} onClose={() => setDrawerId(null)} stages={stages} interviewers={interviewers} viewer={viewer} onChanged={load} />
       <DeleteDialog
         open={deleteOpen}
@@ -592,6 +712,8 @@ function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow;
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <Badge color={r.stage_color}>{r.stage_name}</Badge>
+          {r.tag_name && <Badge color={r.tag_color ?? undefined}>{r.tag_name}</Badge>}
+          {r.rescheduled && <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge>}
           {r.interviewer_name && <Badge color={r.interviewer_color}>{r.interviewer_name}</Badge>}
         </div>
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -601,6 +723,136 @@ function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow;
           <span>{r.salary_lakhs === null ? "—" : `₹${r.salary_lakhs} L`} · {r.notice_period ?? "—"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Quick buttons for Shortlisted: All · No tag · 72h · 48h · 24h · Hold, each with its count.
+ * Daily order: 24h → Hold, 48h → 24h, 72h → 48h, then No tag → 72h (after the Naukri upload).
+ */
+function ShortlistBar({
+  counts,
+  filters,
+  shortlistedStageId,
+  stageName,
+  onPick,
+  onSelectAll,
+  selectingAll,
+  totalShown,
+  allSelected,
+}: {
+  counts: { total: number; none: number; tags: (ShortlistTag & { count: number })[] };
+  filters: Filters;
+  shortlistedStageId: number;
+  stageName: string;
+  onPick: (tagKey: string | null) => void;
+  onSelectAll: () => void;
+  selectingAll: boolean;
+  totalShown: number;
+  allSelected: boolean;
+}) {
+  const onlyShortlisted = filters.stage_ids?.length === 1 && filters.stage_ids[0] === shortlistedStageId;
+  const activeKey = onlyShortlisted ? (filters.tag_ids?.length === 1 ? filters.tag_ids[0] : filters.tag_ids?.length ? "multi" : "all") : null;
+  const items: { key: string | null; label: string; count: number; color?: string }[] = [
+    { key: null, label: `All ${stageName}`, count: counts.total },
+    { key: "none", label: "No tag", count: counts.none },
+    ...counts.tags.map((t) => ({ key: String(t.id), label: t.name, count: Number(t.count), color: t.color })),
+  ];
+  const sorted = [...counts.tags].sort((a, b) => b.position - a.position).map((t) => t.name);
+  return (
+    <div className="glass flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5">
+      <span className="mr-1 text-xs font-medium text-muted-foreground">{stageName}:</span>
+      {items.map((it) => {
+        const active = (it.key ?? "all") === activeKey;
+        return (
+          <button
+            key={it.label}
+            type="button"
+            onClick={() => onPick(it.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+              active ? "border-primary bg-primary text-white" : "border-black/10 bg-white/70 hover:bg-white",
+            )}
+          >
+            {it.color && <span className="size-2 rounded-full" style={{ backgroundColor: active ? "#fff" : it.color }} />}
+            {it.label}
+            <span className={cn("rounded-full px-1.5 text-xs tabular-nums", active ? "bg-white/20" : "bg-black/[0.05]")}>{it.count}</span>
+          </button>
+        );
+      })}
+      {activeKey !== null && totalShown > 0 && (
+        <Button size="sm" variant="gold" onClick={onSelectAll} disabled={selectingAll || allSelected} className="ml-auto">
+          {selectingAll ? <Loader2 className="animate-spin" /> : null}
+          {allSelected ? `All ${totalShown} selected` : `Select all ${totalShown}`}
+        </Button>
+      )}
+      <p className="w-full text-xs text-muted-foreground">
+        Daily order: {sorted.slice(1).map((n, i) => `${n} → ${sorted[i]}`).join(", ")}, then No tag → {sorted[sorted.length - 1] ?? "first tag"} after the Naukri upload.
+      </p>
+    </div>
+  );
+}
+
+type ReschedCount = { stage_id: number; stage_name: string; stage_color: string; total: number; rescheduled: number };
+
+/** Quick buttons for 1:1 Aligned: All · Rescheduled · Not rescheduled, each with its count. */
+function ReschedBar({
+  counts,
+  filters,
+  onPick,
+  onSelectAll,
+  selectingAll,
+  totalShown,
+  allSelected,
+}: {
+  counts: ReschedCount;
+  filters: Filters;
+  onPick: (value: "yes" | "no" | undefined) => void;
+  onSelectAll: () => void;
+  selectingAll: boolean;
+  totalShown: number;
+  allSelected: boolean;
+}) {
+  const onlyThis = filters.stage_ids?.length === 1 && filters.stage_ids[0] === counts.stage_id;
+  const activeKey = onlyThis ? (filters.rescheduled ?? "all") : null;
+  const total = Number(counts.total);
+  const res = Number(counts.rescheduled);
+  const items: { key: "all" | "yes" | "no"; label: string; count: number; color?: string }[] = [
+    { key: "all", label: `All ${counts.stage_name}`, count: total },
+    { key: "yes", label: "Rescheduled", count: res, color: RESCHEDULED_COLOR },
+    { key: "no", label: "Not rescheduled", count: total - res },
+  ];
+  return (
+    <div className="glass flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5">
+      <span className="mr-1 text-xs font-medium text-muted-foreground">{counts.stage_name}:</span>
+      {items.map((it) => {
+        const active = it.key === activeKey;
+        return (
+          <button
+            key={it.key}
+            type="button"
+            onClick={() => onPick(it.key === "all" ? undefined : it.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+              active ? "border-primary bg-primary text-white" : "border-black/10 bg-white/70 hover:bg-white",
+            )}
+          >
+            {it.color && <span className="size-2 rounded-full" style={{ backgroundColor: active ? "#fff" : it.color }} />}
+            {it.label}
+            <span className={cn("rounded-full px-1.5 text-xs tabular-nums", active ? "bg-white/20" : "bg-black/[0.05]")}>{it.count}</span>
+          </button>
+        );
+      })}
+      {activeKey !== null && totalShown > 0 && (
+        <Button size="sm" variant="gold" onClick={onSelectAll} disabled={selectingAll || allSelected} className="ml-auto">
+          {selectingAll ? <Loader2 className="animate-spin" /> : null}
+          {allSelected ? `All ${totalShown} selected` : `Select all ${totalShown}`}
+        </Button>
+      )}
+      <p className="w-full text-xs text-muted-foreground">
+        Tick the people whose 1:1 was rescheduled, then <b>Rescheduled… → Mark as Rescheduled</b>. It clears by itself when they move to the next stage.
+      </p>
     </div>
   );
 }

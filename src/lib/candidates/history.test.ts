@@ -13,6 +13,16 @@ describe("candidate history wording", () => {
     });
     expect(describeEvent(ev("stage_change", { from_stage: "1:1 Aligned", to_stage: "LOI Sent", from_interviewer: "Parul", to_interviewer: "Parul" })).note).toBeUndefined();
   });
+  it("describes tag changes and the tag someone had when they moved", () => {
+    expect(describeEvent(ev("tag_change", { from_tag: "72h", to_tag: "48h" }, 85))).toEqual({ title: "Tag 72h → 48h", note: "Bulk change of 85" });
+    expect(describeEvent(ev("tag_change", { to_tag: "72h" })).title).toBe("Tag No tag → 72h");
+    expect(describeEvent(ev("stage_change", { from_stage: "Shortlisted", to_stage: "JD and Assessment Test Cleared", from_tag: "24h" })).note).toBe("Had tag 24h");
+  });
+  it("describes Rescheduled", () => {
+    expect(describeEvent(ev("reschedule", { rescheduled: true })).title).toBe("Marked Rescheduled (1:1)");
+    expect(describeEvent(ev("reschedule", { rescheduled: false }, 3))).toEqual({ title: "Rescheduled removed", note: "Bulk change of 3" });
+    expect(describeEvent(ev("stage_change", { from_stage: "1:1 Aligned", to_stage: "LOI Sent", was_rescheduled: true })).note).toBe("Was rescheduled");
+  });
   it("describes interviewer changes", () => {
     expect(describeEvent(ev("interviewer_change", { to_interviewer: "Umer" })).title).toBe("Interviewer set to Umer");
     expect(describeEvent(ev("interviewer_change", { from_interviewer: "Parul", to_interviewer: "Umer" })).title).toBe("Interviewer changed Parul → Umer");

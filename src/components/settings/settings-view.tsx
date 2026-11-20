@@ -26,6 +26,8 @@ export interface SettingsData {
   thresholds: { maxDays: number; minConversion: number };
   team: { id: string; email: string; full_name: string; is_admin: boolean; is_active: boolean; created_at: string; access: "full" | "interviewer"; interviewer_id: number | null }[];
   canCreateUsers: boolean;
+  tags: { id: number; name: string; color: string; position: number; candidates: number }[];
+  testStageId: number | null;
 }
 
 /** Colours offered for stages and interviewers (any other colour can be picked too). */
@@ -55,12 +57,14 @@ export function SettingsView({ data }: { data: SettingsData }) {
     <Tabs defaultValue="stages">
       <TabsList>
         <TabsTrigger value="stages">Stages</TabsTrigger>
+        <TabsTrigger value="tags">Shortlist tags</TabsTrigger>
         <TabsTrigger value="interviewers">Interviewers</TabsTrigger>
         <TabsTrigger value="keywords">Role keywords</TabsTrigger>
         <TabsTrigger value="limits">Bottleneck limits</TabsTrigger>
         <TabsTrigger value="team">Team users</TabsTrigger>
       </TabsList>
       <TabsContent value="stages"><Stages data={data} /></TabsContent>
+      <TabsContent value="tags"><ShortlistTags data={data} /></TabsContent>
       <TabsContent value="interviewers"><Interviewers data={data} /></TabsContent>
       <TabsContent value="keywords"><Keywords data={data} /></TabsContent>
       <TabsContent value="limits"><Limits data={data} /></TabsContent>
@@ -217,6 +221,98 @@ function Stages({ data }: { data: SettingsData }) {
         <Button type="submit" size="sm" disabled={pending} className="sm:ml-auto"><Plus /> Add stage</Button>
       </form>
     </Panel>
+  );
+}
+
+// ------------------------------------------------------------------ Shortlist tags
+
+function ShortlistTags({ data }: { data: SettingsData }) {
+  const supabase = useMemo(() => createClient(), []);
+  const { save, pending } = useSave();
+  const [editingColor, setEditingColor] = useState<number | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState(SWATCHES[0]);
+  const tags = data.tags;
+  const shortlisted = data.stages.find((s) => s.is_default);
+
+  const move = (index: number, dir: -1 | 1) => {
+    const ids = tags.map((t) => t.id);
+    [ids[index], ids[index + dir]] = [ids[index + dir], ids[index]];
+    save(() => supabase.rpc("reorder_shortlist_tags", { p_ids: ids }), "Order saved");
+  };
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Shortlist tags"
+        description={`Tags for candidates in ${shortlisted?.name ?? "Shortlisted"} only, used for the daily reminders. The order is the cycle: No tag → ${tags.map((t) => t.name).join(" → ")}. Tags change only when someone changes them, and are removed automatically when a candidate leaves ${shortlisted?.name ?? "Shortlisted"}.`}
+      >
+        <ol className="space-y-2">
+          {tags.map((t, i) => (
+            <li key={t.id} className="rounded-2xl border border-black/[0.06] bg-white/60 p-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col">
+                  <button className="rounded p-0.5 text-muted-foreground hover:bg-black/5 disabled:opacity-25" disabled={i === 0 || pending} onClick={() => move(i, -1)} aria-label="Move up"><ArrowUp className="size-3.5" /></button>
+                  <button className="rounded p-0.5 text-muted-foreground hover:bg-black/5 disabled:opacity-25" disabled={i === tags.length - 1 || pending} onClick={() => move(i, 1)} aria-label="Move down"><ArrowDown className="size-3.5" /></button>
+                </div>
+                <span className="w-5 text-right text-xs tabular-nums text-muted-foreground">{i + 1}.</span>
+                <button type="button" className="size-6 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: t.color }} onClick={() => setEditingColor(editingColor === t.id ? null : t.id)} aria-label="Change colour" />
+                <InlineName value={t.name} className="min-w-0 flex-1 basis-32" onSave={(name) => save(() => supabase.from("shortlist_tags").update({ name }).eq("id", t.id), `Renamed to ${name}`)} />
+                <Badge color={t.color}>{t.name}</Badge>
+                <span className="w-24 text-right text-xs tabular-nums text-muted-foreground">{t.candidates} candidate{t.candidates === 1 ? "" : "s"}</span>
+                <button
+                  className="rounded-full p-1.5 text-destructive hover:bg-red-50 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent"
+                  disabled={t.candidates > 0 || pending}
+                  title={t.candidates > 0 ? `Change the tag of the ${t.candidates} candidates first` : "Delete this tag"}
+                  onClick={() => window.confirm(`Delete the tag "${t.name}"?`) && save(() => supabase.from("shortlist_tags").delete().eq("id", t.id), `${t.name} deleted`)}
+                  aria-label={`Delete ${t.name}`}
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+              {editingColor === t.id && (
+                <div className="mt-2 pl-12">
+                  <ColorPicker value={t.color} onChange={(color) => save(() => supabase.from("shortlist_tags").update({ color }).eq("id", t.id), "Colour saved")} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+        <form
+          className="mt-4 flex flex-col gap-3 rounded-2xl border border-dashed border-black/15 p-3 sm:flex-row sm:items-center"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newName.trim()) return toast.error("Type a name for the new tag.");
+            const position = Math.max(0, ...tags.map((t) => t.position)) + 1;
+            if (await save(() => supabase.from("shortlist_tags").insert({ name: newName.trim(), color: newColor, position }), `${newName.trim()} added at the end`)) setNewName("");
+          }}
+        >
+          <Input placeholder="New tag, e.g. 12h" value={newName} onChange={(e) => setNewName(e.target.value)} className="sm:max-w-60" />
+          <ColorPicker value={newColor} onChange={setNewColor} />
+          <Button type="submit" size="sm" disabled={pending} className="sm:ml-auto"><Plus /> Add tag</Button>
+        </form>
+      </Panel>
+
+      <Panel title="Test-results upload" description="Upload History → Upload test results moves everyone in the file who is in Shortlisted (any tag) to this stage.">
+        <label className="flex flex-wrap items-center gap-3 text-sm">
+          Move them to
+          <select
+            className="h-9 min-w-64 rounded-lg border border-black/10 bg-white/80 px-2 text-sm"
+            value={data.testStageId ?? ""}
+            disabled={pending}
+            onChange={(e) =>
+              save(
+                () => supabase.from("app_settings").upsert([{ key: "test_cleared_stage_id", value: Number(e.target.value) }]),
+                "Saved. Test-results uploads now move candidates to this stage.",
+              )
+            }
+          >
+            {!data.testStageId && <option value="">Choose…</option>}
+            {data.stages.filter((s) => !s.is_default).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+      </Panel>
+    </div>
   );
 }
 

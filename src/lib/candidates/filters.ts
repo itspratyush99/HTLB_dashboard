@@ -4,7 +4,7 @@
  * (Analytics' "stuck candidates" uses this in Phase 5).
  */
 import { formatDate } from "@/lib/dates";
-import type { Interviewer, Stage } from "./types";
+import type { Interviewer, ShortlistTag, Stage } from "./types";
 
 export interface ScreeningFilter {
   min?: number;
@@ -16,6 +16,8 @@ export interface Filters {
   q?: string;
   stage_ids?: number[];
   interviewer_ids?: string[]; // interviewer ids as text, or "none"
+  rescheduled?: "yes" | "no"; // 1:1 rescheduled or not
+  tag_ids?: string[]; // Shortlisted tag ids as text, or "none" (= Shortlisted with no tag)
   created_from?: string; // YYYY-MM-DD (IST)
   created_to?: string;
   applied_from?: string;
@@ -95,7 +97,7 @@ const dateRange = (from?: string, to?: string) =>
   from && to ? `${formatDate(from)} – ${formatDate(to)}` : from ? `from ${formatDate(from)}` : `until ${formatDate(to)}`;
 
 /** Human-readable chips for the active filters (excluding the search box). */
-export function describeFilters(f: Filters, stages: Stage[], interviewers: Interviewer[]): FilterChip[] {
+export function describeFilters(f: Filters, stages: Stage[], interviewers: Interviewer[], tags: ShortlistTag[] = []): FilterChip[] {
   const chips: FilterChip[] = [];
   if (f.stage_ids?.length)
     chips.push({ key: "stage_ids", label: `Stage: ${list(f.stage_ids.map((id) => stages.find((s) => s.id === id)?.name ?? "?"))}` });
@@ -104,6 +106,9 @@ export function describeFilters(f: Filters, stages: Stage[], interviewers: Inter
       key: "interviewer_ids",
       label: `Interviewer: ${list(f.interviewer_ids.map((id) => (id === "none" ? "None" : interviewers.find((i) => String(i.id) === id)?.name ?? "?")))}`,
     });
+  if (f.tag_ids?.length)
+    chips.push({ key: "tag_ids", label: `Tag: ${list(f.tag_ids.map((id) => (id === "none" ? "No tag" : tags.find((t) => String(t.id) === id)?.name ?? "?")))}` });
+  if (f.rescheduled) chips.push({ key: "rescheduled", label: f.rescheduled === "yes" ? "Rescheduled" : "Not rescheduled" });
   if (f.created_from || f.created_to) chips.push({ key: "created", label: `Uploaded ${dateRange(f.created_from, f.created_to)}` });
   if (f.applied_from || f.applied_to) chips.push({ key: "applied", label: `Applied ${dateRange(f.applied_from, f.applied_to)}` });
   if (f.stage_changed_from || f.stage_changed_to)

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCheck, Upload } from "lucide-react";
 import { createClient, requireFullMember } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
@@ -27,11 +27,16 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader
         title="Upload History"
-        description="One row per Naukri file imported. Click a row to see the candidates it added."
+        description="Every Naukri file and test-results file uploaded. Click a row for details."
         actions={
-          <Button asChild>
-            <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/uploads/test-results"><ClipboardCheck /> Upload test results</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
+            </Button>
+          </>
         }
       />
 
@@ -49,15 +54,16 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
             <TableHeader>
               <TableRow>
                 <TableHead>Date &amp; time (IST)</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>File</TableHead>
                 <TableHead>Uploaded by</TableHead>
                 <TableHead className="text-right">ZBM</TableHead>
                 <TableHead className="text-right">HOS</TableHead>
                 <TableHead className="text-right">Total rows</TableHead>
-                <TableHead className="text-right">New added</TableHead>
-                <TableHead className="text-right">Duplicates skipped</TableHead>
+                <TableHead className="text-right">Added / moved</TableHead>
+                <TableHead className="text-right">Skipped</TableHead>
                 <TableHead>Possible duplicates</TableHead>
-                <TableHead className="text-right">Unassigned</TableHead>
+                <TableHead className="text-right">Unassigned / not found</TableHead>
                 <TableHead className="text-right">Errors</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -70,9 +76,11 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
                     <Link href={href} className="block">{content}</Link>
                   </TableCell>
                 );
+                const test = u.kind === "test_results";
                 return (
                   <TableRow key={u.id} className="cursor-pointer">
                     {cell(formatDateTime(u.uploaded_at), "whitespace-nowrap")}
+                    {cell(test ? <Badge color="#9a7a12">Test results</Badge> : <Badge color="#1f4d36">Naukri</Badge>)}
                     {cell(<span title={u.file_name}>{u.file_name}</span>, "max-w-64 truncate font-medium text-primary")}
                     {cell(u.uploader?.full_name ?? "—")}
                     {cell(u.zbm_rows, "text-right tabular-nums")}
@@ -81,7 +89,9 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
                     {cell(<b className="text-emerald-700">{u.new_added}</b>, "text-right tabular-nums")}
                     {cell(u.duplicates_skipped, "text-right tabular-nums")}
                     {cell(
-                      u.flagged_count ? (
+                      test ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : u.flagged_count ? (
                         <span className="whitespace-nowrap text-xs">
                           {u.flagged_count} · <Badge color="#059669">{u.flagged_added} added</Badge>{" "}
                           <Badge>{u.flagged_skipped} skipped</Badge>

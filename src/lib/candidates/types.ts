@@ -42,6 +42,11 @@ export interface CandidateRow {
   interviewer_id: number | null;
   interviewer_name: string | null;
   interviewer_color: string | null;
+  shortlist_tag_id: number | null;
+  rescheduled?: boolean; // 1:1 interview rescheduled (only in 1:1 Aligned)
+  rescheduled_at?: string | null;
+  tag_name: string | null; // 72h / 48h / 24h / Hold (Shortlisted only)
+  tag_color: string | null;
   stage_changed_at: string;
   created_at: string;
   upload_id: string | null;
@@ -59,6 +64,15 @@ export interface Stage {
   color: string;
   position: number;
   requires_interviewer: boolean;
+  is_default?: boolean; // the starting stage (Shortlisted): the only stage with tags
+}
+
+/** A Shortlisted tag (72h, 48h, 24h, Hold…). Order = the reminder cycle. */
+export interface ShortlistTag {
+  id: number;
+  name: string;
+  color: string;
+  position: number;
 }
 
 export interface Interviewer {

@@ -5,7 +5,8 @@ import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Loader2 } from "
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Filters } from "@/lib/candidates/filters";
-import type { Role, Stage } from "@/lib/candidates/types";
+import type { Role, ShortlistTag, Stage } from "@/lib/candidates/types";
+import { nextTag } from "./tag-dialog";
 import {
   buildBulkSenderCsv,
   bulkSenderFileName,
@@ -18,7 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-type Loaded = { candidates: (ExportCandidate & { stage_id: number })[] };
+type Loaded = { candidates: (ExportCandidate & { stage_id: number; tag_id: number | null; tag_name: string | null })[] };
 type Done = { fileName: string; result: BulkSenderExport };
 
 /** "Export for Bulk Sender": choose Tags, download the CSV, then see who was skipped. */
@@ -29,6 +30,10 @@ export function ExportDialog({
   selectedIds,
   filters,
   stages,
+  tags = [],
+  shortlistedStageId = null,
+  canTag = false,
+  onTagExported,
   onMoveExported,
 }: {
   open: boolean;
@@ -37,6 +42,10 @@ export function ExportDialog({
   selectedIds: string[];
   filters: Filters;
   stages: Stage[];
+  tags?: ShortlistTag[];
+  shortlistedStageId?: number | null;
+  canTag?: boolean;
+  onTagExported?: (ids: string[], suggested: number | null, heading: string) => void;
   onMoveExported: (ids: string[]) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -70,7 +79,14 @@ export function ExportDialog({
     () => (loaded ? buildBulkSenderCsv(loaded.candidates, { mode: tagMode, customText }) : null),
     [loaded, tagMode, customText],
   );
-  const fileName = loaded ? bulkSenderFileName(role, loaded.candidates.map((c) => c.stage_name)) : "";
+  const fileName = loaded
+    ? bulkSenderFileName(
+        role,
+        loaded.candidates.map((c) => c.stage_name),
+        new Date(),
+        loaded.candidates.map((c) => (c.stage_id === shortlistedStageId ? c.tag_name ?? "No tag" : null)),
+      )
+    : "";
   const invalid = preview?.skipped.filter((s) => s.reason === "invalid phone") ?? [];
   const duplicates = preview?.skipped.filter((s) => s.reason === "duplicate mobile") ?? [];
 
@@ -205,15 +221,18 @@ export function ExportDialog({
               duplicates={done.result.skipped.filter((s) => s.reason === "duplicate mobile")}
             />
             <p className="text-sm text-muted-foreground">
-              Your selection is kept. Once the messages are sent, move the exported candidates to their next stage. Candidates
-              who were skipped stay where they are.
+              Your selection is kept. Once the messages are sent, move the exported candidates on. Candidates who were skipped stay where they are.
             </p>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
-              <Button onClick={() => onMoveExported(done.result.includedIds)} disabled={!done.result.includedIds.length}>
-                <ArrowRightLeft /> Move these {done.result.includedIds.length} exported candidates to stage…
-              </Button>
-            </DialogFooter>
+            <AfterExport
+              loaded={loaded!}
+              includedIds={done.result.includedIds}
+              tags={tags}
+              shortlistedStageId={shortlistedStageId}
+              canTag={canTag}
+              onTagExported={onTagExported}
+              onMoveExported={onMoveExported}
+              onClose={() => onOpenChange(false)}
+            />
           </>
         )}
       </DialogContent>
@@ -243,5 +262,57 @@ function Group({ tone, title, items }: { tone: "red" | "amber"; title: string; i
         ))}
       </ul>
     </details>
+  );
+}
+
+/**
+ * Buttons after a download. For one Shortlisted tag group the main button moves exactly the exported
+ * candidates to the next tag (No tag → 72h → 48h → 24h → Hold), so nobody is double-moved.
+ */
+function AfterExport({
+  loaded,
+  includedIds,
+  tags,
+  shortlistedStageId,
+  canTag,
+  onTagExported,
+  onMoveExported,
+  onClose,
+}: {
+  loaded: Loaded;
+  includedIds: string[];
+  tags: ShortlistTag[];
+  shortlistedStageId: number | null;
+  canTag: boolean;
+  onTagExported?: (ids: string[], suggested: number | null, heading: string) => void;
+  onMoveExported: (ids: string[]) => void;
+  onClose: () => void;
+}) {
+  const included = new Set(includedIds);
+  const shortlisted = loaded.candidates.filter((c) => included.has(c.id) && c.stage_id === shortlistedStageId);
+  const tagIds = new Set(shortlisted.map((c) => c.tag_id));
+  const single = tagIds.size === 1 ? [...tagIds][0] : undefined;
+  const next = single !== undefined ? nextTag(tags, single) : null;
+  const currentName = single === null ? "No tag" : tags.find((t) => t.id === single)?.name;
+  const ids = shortlisted.map((c) => c.id);
+
+  return (
+    <DialogFooter>
+      <Button variant="ghost" onClick={onClose}>Done</Button>
+      <Button variant={canTag && shortlisted.length ? "outline" : "default"} onClick={() => onMoveExported(includedIds)} disabled={!includedIds.length}>
+        <ArrowRightLeft /> Move to stage…
+      </Button>
+      {canTag && onTagExported && shortlisted.length > 0 && (
+        next ? (
+          <Button onClick={() => onTagExported(ids, next.id, `Tag the ${ids.length} exported candidates`)}>
+            Move these {ids.length} from {currentName} to {next.name}
+          </Button>
+        ) : single === undefined ? (
+          <Button onClick={() => onTagExported(ids, null, `Tag the ${ids.length} exported candidates`)}>Change tag of these {ids.length}…</Button>
+        ) : (
+          <span className="self-center text-xs text-muted-foreground">{currentName} is the last tag.</span>
+        )
+      )}
+    </DialogFooter>
   );
 }

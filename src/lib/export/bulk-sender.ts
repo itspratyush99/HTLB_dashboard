@@ -98,9 +98,13 @@ export function fileNamePart(text: string): string {
 /**
  * <ROLE>_<Stage>_<DD-MMM-YYYY>.csv, e.g. HOS_FAQ-Invited_14-Nov-2026.csv.
  * When the exported candidates are in different stages, the stage part is "Mixed".
+ * For one Shortlisted tag group the tag is added: ZBM_Shortlisted-48h_19-Nov-2026.csv
+ * (`tags` has one entry per candidate: its tag name, "No tag", or null when not in Shortlisted).
  */
-export function bulkSenderFileName(role: string, stageNames: (string | null)[], date: Date = new Date()): string {
+export function bulkSenderFileName(role: string, stageNames: (string | null)[], date: Date = new Date(), tags?: (string | null)[]): string {
   const distinct = [...new Set(stageNames.filter(Boolean))] as string[];
-  const stage = distinct.length === 1 ? fileNamePart(distinct[0]) : "Mixed";
+  let stage = distinct.length === 1 ? fileNamePart(distinct[0]) : "Mixed";
+  const tagSet = new Set(tags ?? []);
+  if (distinct.length === 1 && tags?.length && tagSet.size === 1 && !tagSet.has(null)) stage += `-${fileNamePart(String(tags[0]))}`;
   return `${role}_${stage}_${formatInTimeZone(date, IST, "dd-MMM-yyyy")}.csv`;
 }

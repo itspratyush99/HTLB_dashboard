@@ -44,7 +44,7 @@ The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business M
    - **Region:** **South Asia (Mumbai)**.
 3. Click **Create new project** and wait 1–2 minutes.
 
-### 1.2 Create the database (6 SQL files, in order)
+### 1.2 Create the database (9 SQL files, in order)
 The files are in `supabase/migrations/`. For **each file, in this order**:
 1. Open **SQL Editor → New query**.
 2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
@@ -59,8 +59,10 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 5 | `0005_dashboard_analytics.sql` | Dashboard and Analytics |
 | 6 | `0006_settings.sql` | Editable Settings and team-user safety rules |
 | 7 | `0007_access_levels_and_delete.sql` | Access levels (Admin / Team member / Interviewer) and admin delete |
+| 8 | `0008_shortlist_tags_and_test_results.sql` | Shortlist tags (72h / 48h / 24h / Hold) and the test-results upload |
+| 9 | `0009_rescheduled_tag.sql` | "Rescheduled" tag for 1:1 interviews |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4, 6 and 7. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8 and 9. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -119,6 +121,15 @@ Whenever you receive a new version:
 1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
+
+### Adding the Rescheduled tag and the logout fix (if you already run 0008)
+1. Run **`0009_rescheduled_tag.sql`** in the SQL Editor (click **Run query** if the warning appears). No candidates change.
+2. Upload the new files to GitHub and click **Commit changes**. Vercel redeploys in about 2 minutes.
+
+### Adding shortlist tags and test-results upload (if you already run 0007)
+1. Run **`0008_shortlist_tags_and_test_results.sql`** in the SQL Editor. Supabase may show the "destructive operations" warning: click **Run query**. It's safe, and no candidates change. Everyone in Shortlisted starts with **No tag**.
+2. Upload the new files to GitHub and click **Commit changes**. Vercel redeploys in about 2 minutes.
+3. Check **Settings → Shortlist tags** (72h, 48h, 24h, Hold) and the **Test-results upload** stage below it.
 
 ### Adding access levels and delete (if you already run the final version)
 1. Run **`0007_access_levels_and_delete.sql`** in the SQL Editor. Everyone keeps full access until an admin changes it.
@@ -205,19 +216,23 @@ Each person can change their own display name.
 
 ## 6. The daily routine
 
-1. **Upload:** in **Upload History → Upload Naukri file**, drop today's export.
-   - Review the preview: new, duplicates, possible duplicates, unassigned, errors.
-   - Click **Import**.
-2. **Filter:** in **ZBM** or **HOS**, open **Filters**, tick the stage, then **Apply filters**.
-3. **Select:** tick the top checkbox, then **Select all … matching the filters**.
-4. **Export:** click **Export for Bulk Sender** and choose Tags if needed, then **Download CSV**.
-   - Upload the file to the bulk sender **without opening it in Excel**.
-5. **Move:** back in the panel, click **Move these … exported candidates to stage…**, choose the next stage, and confirm.
-   - For **1:1 Aligned**, pick the interviewer.
-6. **Check:**
-   - **Dashboard** for today's numbers.
-   - **Analytics → Bottlenecks** for candidates stuck too long, or stages converting poorly.
-   - "Open them" opens those candidates, ready to export or move.
+Same steps for **ZBM** and **HOS**. Only Admins and Team members can do this, not Interviewer logins.
+
+1. **Test results first:** in **Upload History → Upload test results**, drop the assessment CSV or Excel.
+   - The preview shows who will move to *JD and Assessment Test Cleared*, who already moved, and who isn't in the tracker.
+   - Click **Move N**. These people stop getting reminders.
+2. **24h → Hold:** in **ZBM**, click the **24h** chip, then **Select all N**, then **Export for Bulk Sender → Download CSV**.
+   - Send the final message from the bulk sender.
+   - Back in the panel, click **Move these N from 24h to Hold**.
+3. **48h → 24h:** the same with the **48h** chip.
+4. **72h → 48h:** the same with the **72h** chip.
+5. **Naukri upload:** in **Upload History → Upload Naukri file**, drop today's export and click **Import**. New candidates arrive in Shortlisted with **No tag**.
+6. **No tag → 72h:** the same with the **No tag** chip.
+7. Repeat for **HOS**, then check the **Dashboard**.
+
+The chips show live counts, and clicking one clears any earlier selection, so groups never mix. Upload the CSV to the bulk sender **without opening it in Excel**.
+
+For other stages: open **Filters**, tick the stage, **Select all**, **Export**, then **Move these … exported candidates to stage…** (for 1:1 Aligned, pick the interviewer).
 
 ---
 
@@ -269,7 +284,30 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
 - Every move records who did it, the time (IST), the candidate, the from → to stage, and a **bulk action ID**, so a bulk move shows as one entry in the Activity Log.
 - Moving candidates who are already in the chosen stage changes nothing for them, and the confirmation says so.
 
-### 7.4 How Analytics counts
+### 7.4 Shortlist tags and test results
+
+- **Tags exist only in Shortlisted.** New candidates start with *No tag*. When a candidate moves to any other stage the tag is removed, and the history notes which tag they had.
+- **Tags change only by hand** (the chips, **Tag…** in the selection bar, or **Move these N from X to Y** after an export). There's no timer.
+- **The CSV never changes.** Tags are not written into the bulk-sender file, so AI Sensei gets exactly the same columns. Only the file name says the group, e.g. `ZBM_Shortlisted-48h_19-Nov-2026.csv`.
+- **Test-results upload:**
+  - Accepts CSV or Excel with a *Mobile* column (Name, Percentage and Assessment status are shown when present).
+  - Matches by mobile number. Someone in both ZBM and HOS moves in both.
+  - Moves everyone in Shortlisted (any tag) to the stage chosen in **Settings → Shortlist tags → Test-results upload**.
+  - Leaves alone anyone already in that stage or further, so uploading the same cumulative file again is safe.
+  - *Not in the tracker* lists people whose mobile isn't in the panel (e.g. they applied with another number). Search them by name and move them by hand.
+  - **Pass mark (optional):** empty means everyone in the file moves. Type e.g. 60 to move only those who scored at least 60%.
+  - Each upload is saved in Upload History (type *Test results*) and the Activity Log.
+- **Analytics → Which reminder works:** of the candidates who left Shortlisted in the period, how many had each tag at that moment.
+
+### 7.5 Rescheduled 1:1s
+
+- **Everyone can use it:** admins, team members and interviewer logins. Interviewers can only mark their own candidates.
+- **Only in 1:1 Aligned** (any stage that asks for an interviewer). Selected candidates in other stages are skipped, and the message says how many.
+- **How:** in ZBM or HOS, click **Rescheduled** / **Not rescheduled** above the table, or tick candidates and use **Rescheduled… → Mark as Rescheduled** (or **Remove Rescheduled**). One candidate: open them and click **Mark Rescheduled**.
+- **Clears by itself** when the candidate moves to another stage. Their history keeps "Was rescheduled".
+- Shown on the **Dashboard** (per interviewer and in total), in the **Filters** panel, and in the **Activity Log** (filter "Rescheduled 1:1s").
+
+### 7.6 How Analytics counts
 
 All days are India time (IST).
 - **Enters a stage:** a candidate enters Shortlisted when uploaded, and any other stage when moved into it.
@@ -285,7 +323,7 @@ All days are India time (IST).
   Both limits are set in **Settings → Bottleneck limits**.
 - **Interviewer filter:** limits everything to candidates who currently have that interviewer.
 
-### 7.5 Settings
+### 7.7 Settings
 - **Stages:**
   - Rename one, change its colour, reorder with the ↑ / ↓ arrows, add new ones at the end, and choose where new candidates start.
   - Mark which stage asks for an interviewer.
@@ -296,6 +334,7 @@ All days are India time (IST).
 - **Role keywords:**
   - Add or remove keywords, and choose *Contains* or *Whole word* for each.
   - Use **Try a job title** to test a title before an upload.
+- **Shortlist tags:** rename, recolour, reorder (the order is the reminder cycle), add, or delete a tag nobody has. Below it, choose the stage the test-results upload moves people to.
 - **Bottleneck limits:** max days in a stage (1–90) and minimum conversion (1–100%).
 - **Every settings change** is recorded in the Activity Log.
 
@@ -358,6 +397,10 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 | The bulk sender rejects the CSV, or numbers look like `9.19963E+11` | The file was opened and saved in Excel. Export again and upload it untouched. |
 | Upload says "doesn't look like a Naukri export" | Use the candidate export from Naukri. The file needs at least *Job Title*, *Name* and a phone or email column. |
 | An upload shows "Stopped part-way" | Upload the same file again. Saved candidates are skipped as exact duplicates, and only the missing ones are added. |
+| No **Upload test results** button, or no tag chips | Run `0008_shortlist_tags_and_test_results.sql`. Interviewer logins never see them. |
+| Test upload: many people "Not in the tracker" | Normal for a cumulative file: it includes people from older Naukri files or another number. Check a few by name. |
+| Test upload: "No Mobile column" | The file needs a column called Mobile (or Phone / Mobile Number). |
+| Log out does nothing | Fixed in this version. Update the site, then press Ctrl+F5 (or close and reopen the tab) once. |
 | Vercel build failed | **Vercel → Deployments →** click the failed one and read the red error. Usually a file was missed in the GitHub upload, so upload the full folder again. |
 
 ---
@@ -379,7 +422,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0007: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0009: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions

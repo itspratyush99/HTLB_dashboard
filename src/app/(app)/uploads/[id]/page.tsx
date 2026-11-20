@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RoleBadge } from "@/components/upload/upload-preview";
 import { UploadStatus } from "@/components/upload/upload-status";
+import { TestResultsDetail } from "@/components/upload/test-results-detail";
 
 export const metadata = { title: "Upload details" };
 
@@ -47,6 +48,7 @@ export default async function UploadDetailPage({
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
   ]);
   if (!upload) notFound();
+  if (upload.kind === "test_results") return <TestResultsDetail upload={upload} />;
 
   const flagged = (upload.flagged ?? []) as FlaggedRecord[];
   const unassigned = (upload.unassigned ?? []) as UnassignedRecord[];

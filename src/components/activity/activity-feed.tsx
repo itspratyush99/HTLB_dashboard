@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, ChevronDown, ChevronRight, Download, Loader2, Settings, Trash2, Upload, UserRound } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, ChevronDown, ChevronRight, Download, Loader2, Settings, Tag as TagIcon, Trash2, Upload, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/dates";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { CandidateDrawer } from "@/components/candidates/candidate-drawer";
 import type { Viewer } from "@/lib/viewer";
 
-type Action = "stage_change" | "interviewer_change" | "upload" | "export" | "settings_change" | "candidates_deleted";
+type Action = "stage_change" | "interviewer_change" | "tag_change" | "reschedule" | "upload" | "export" | "settings_change" | "candidates_deleted";
 
 interface Group {
   gkey: string;
@@ -47,6 +47,8 @@ const PAGE = 50;
 const ACTIONS: [Action, string][] = [
   ["stage_change", "Stage moves"],
   ["interviewer_change", "Interviewer changes"],
+  ["tag_change", "Tag changes"],
+  ["reschedule", "Rescheduled 1:1s"],
   ["upload", "Uploads"],
   ["export", "Exports"],
   ["settings_change", "Settings changes"],
@@ -144,7 +146,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
   const d = g.details ?? {};
   const who = <b>{g.user_name ?? "System"}</b>;
   const expandable = (g.bulk_action_id && g.candidate_count > 1) || (g.action === "export" && Array.isArray(d.candidate_ids) && d.candidate_ids.length > 0);
-  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings, candidates_deleted: Trash2 }[g.action];
+  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings, candidates_deleted: Trash2, tag_change: TagIcon, reschedule: CalendarClock }[g.action];
 
   const singleName =
     g.candidate_count === 1 && g.first_candidate_id ? (
@@ -173,6 +175,26 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
       <>{who} set interviewer <b>{g.to_interviewers.join(", ")}</b> for {singleName}</>
     ) : (
       <>{who} removed the interviewer from {singleName}</>
+    );
+  } else if (g.action === "tag_change") {
+    text = (
+      <>
+        {who} changed the tag of {singleName} from <b>{str(d.from_tag) || "No tag"}</b> to <b>{str(d.to_tag) || "No tag"}</b>
+      </>
+    );
+  } else if (g.action === "reschedule") {
+    text = d.rescheduled === false ? (
+      <>{who} removed <b>Rescheduled</b> from {singleName}</>
+    ) : (
+      <>{who} marked the 1:1 of {singleName} as <b>Rescheduled</b></>
+    );
+  } else if (g.action === "upload" && d.kind === "test_results") {
+    text = (
+      <>
+        {who} uploaded test results{" "}
+        {g.upload_id ? <Link className="font-medium text-primary hover:underline" href={`/uploads/${g.upload_id}`}>{str(d.file_name)}</Link> : str(d.file_name)}:{" "}
+        <b>{str(d.moved)} moved</b> to {str(d.target_stage)}, {str(d.already_moved)} already moved, {str(d.not_found)} not in the tracker
+      </>
     );
   } else if (g.action === "upload") {
     text = (
@@ -254,7 +276,14 @@ function GroupCandidates({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (i
             ((data ?? []) as { candidate_id: string; details: Record<string, string | null> }[]).map((r) => ({
               id: r.candidate_id,
               name: r.details?.candidate_name ?? "—",
-              note: g.action === "stage_change" ? `${r.details?.from_stage} → ${r.details?.to_stage}` : `${r.details?.from_interviewer ?? "none"} → ${r.details?.to_interviewer ?? "none"}`,
+              note:
+                g.action === "stage_change"
+                  ? `${r.details?.from_stage} → ${r.details?.to_stage}`
+                  : g.action === "reschedule"
+                    ? (String(r.details?.rescheduled) === "false" ? "Rescheduled removed" : "Rescheduled")
+                  : g.action === "tag_change"
+                    ? `${r.details?.from_tag ?? "No tag"} → ${r.details?.to_tag ?? "No tag"}`
+                    : `${r.details?.from_interviewer ?? "none"} → ${r.details?.to_interviewer ?? "none"}`,
             })),
           );
       }

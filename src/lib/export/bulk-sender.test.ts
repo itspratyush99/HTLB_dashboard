@@ -77,6 +77,12 @@ describe("file name", () => {
     expect(bulkSenderFileName("ZBM", ["1:1 Aligned"], d)).toBe("ZBM_1-1-Aligned_14-Nov-2026.csv");
     expect(bulkSenderFileName("ZBM", ["Shortlisted", "LOI Sent"], d)).toBe("ZBM_Mixed_14-Nov-2026.csv");
   });
+  it("adds the Shortlisted tag when everyone has the same one", () => {
+    expect(bulkSenderFileName("ZBM", ["Shortlisted", "Shortlisted"], d, ["48h", "48h"])).toBe("ZBM_Shortlisted-48h_14-Nov-2026.csv");
+    expect(bulkSenderFileName("ZBM", ["Shortlisted"], d, ["No tag"])).toBe("ZBM_Shortlisted-No-tag_14-Nov-2026.csv");
+    expect(bulkSenderFileName("ZBM", ["Shortlisted", "Shortlisted"], d, ["48h", "24h"])).toBe("ZBM_Shortlisted_14-Nov-2026.csv");
+    expect(bulkSenderFileName("ZBM", ["FAQ Invited"], d, [null])).toBe("ZBM_FAQ-Invited_14-Nov-2026.csv");
+  });
   it("uses the IST date (11:30 PM UTC is already the next day in India)", () => {
     expect(bulkSenderFileName("ZBM", ["LOI Sent"], new Date("2026-11-14T20:00:00Z"))).toBe("ZBM_LOI-Sent_15-Nov-2026.csv");
   });

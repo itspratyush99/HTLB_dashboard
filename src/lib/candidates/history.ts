@@ -2,7 +2,7 @@
 
 export interface HistoryEvent {
   at: string;
-  kind: "added" | "stage_change" | "interviewer_change" | "export";
+  kind: "added" | "stage_change" | "interviewer_change" | "export" | "tag_change" | "reschedule";
   user_name: string | null;
   details: Record<string, unknown> | null;
   bulk_action_id: string | null;
@@ -19,11 +19,21 @@ export function describeEvent(e: HistoryEvent): { title: string; note?: string }
         title: `Added in ${s(d.stage) ?? "Shortlisted"}`,
         note: s(d.file_name) ? `From upload ${d.file_name}` : undefined,
       };
+    case "tag_change":
+      return {
+        title: `Tag ${s(d.from_tag) ?? "No tag"} → ${s(d.to_tag) ?? "No tag"}`,
+        note: e.bulk_size > 1 ? `Bulk change of ${e.bulk_size}` : undefined,
+      };
+    case "reschedule":
+      return {
+        title: d.rescheduled === false ? "Rescheduled removed" : "Marked Rescheduled (1:1)",
+        note: e.bulk_size > 1 ? `Bulk change of ${e.bulk_size}` : undefined,
+      };
     case "stage_change": {
       const interviewerChanged = s(d.to_interviewer) && d.to_interviewer !== d.from_interviewer;
       return {
         title: `Moved ${s(d.from_stage) ?? "?"} → ${s(d.to_stage) ?? "?"}`,
-        note: [interviewerChanged ? `Interviewer: ${d.to_interviewer}` : null, e.bulk_size > 1 ? `Bulk move of ${e.bulk_size}` : null]
+        note: [s(d.from_tag) ? `Had tag ${d.from_tag}` : null, d.was_rescheduled === true ? "Was rescheduled" : null, interviewerChanged ? `Interviewer: ${d.to_interviewer}` : null, e.bulk_size > 1 ? `Bulk move of ${e.bulk_size}` : null]
           .filter(Boolean)
           .join(" · ") || undefined,
       };

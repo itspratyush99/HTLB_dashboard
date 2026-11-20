@@ -4,6 +4,7 @@ import { createClient, getCurrentProfile, toViewer } from "@/lib/supabase/server
 import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ type RoleStats = {
   new_week: number;
   stuck: number;
   stages: { id: number; name: string; color: string; position: number; requires_interviewer: boolean; count: number }[];
-  interviewers: { id: number; name: string; color: string; count: number }[];
+  interviewers: { id: number; name: string; color: string; count: number; rescheduled?: number }[];
+  rescheduled?: number;
+  shortlist_tags?: { id: number; name: string; color: string; position: number; count: number }[];
+  shortlist_no_tag?: number;
 };
 
 const ROLE_NAMES = { ZBM: "Zonal Business Manager", HOS: "Head of States" } as const;
@@ -93,6 +97,25 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
         ))}
       </ul>
 
+      {/* Shortlisted by tag (the daily reminder routine) */}
+      {s.shortlist_tags && (
+        <>
+          <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Shortlisted by tag</h3>
+          <div className="flex flex-wrap gap-2">
+            {[{ id: "none", name: "No tag", color: "#6e6e73", count: s.shortlist_no_tag ?? 0 }, ...s.shortlist_tags].map((t) => (
+              <Link
+                key={String(t.id)}
+                href={roleLink(role, { tag_ids: [String(t.id)] })}
+                className="flex items-center gap-2 rounded-2xl border border-black/[0.06] bg-white/60 px-3 py-2 hover:bg-white"
+              >
+                <Badge color={t.color}>{t.name}</Badge>
+                <span className="text-lg font-semibold tabular-nums">{t.count}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* 1:1 Aligned per interviewer */}
       <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">1:1 Aligned per interviewer</h3>
       <div className="flex flex-wrap gap-2">
@@ -104,8 +127,18 @@ function RoleColumn({ role, s }: { role: "ZBM" | "HOS"; s: RoleStats }) {
           >
             <Badge color={i.color}>{i.name}</Badge>
             <span className="text-lg font-semibold tabular-nums">{i.count}</span>
+            {(i.rescheduled ?? 0) > 0 && <span className="text-xs text-muted-foreground">· {i.rescheduled} rescheduled</span>}
           </Link>
         ))}
+        {(s.rescheduled ?? 0) > 0 && (
+          <Link
+            href={roleLink(role, { stage_ids: s.stages.filter((x) => x.requires_interviewer).map((x) => x.id), rescheduled: "yes" })}
+            className="flex items-center gap-2 rounded-2xl border border-black/[0.06] bg-white/60 px-3 py-2 hover:bg-white"
+          >
+            <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge>
+            <span className="text-lg font-semibold tabular-nums">{s.rescheduled}</span>
+          </Link>
+        )}
         {!s.interviewers.length && <p className="text-sm text-muted-foreground">No active interviewers.</p>}
       </div>
     </section>

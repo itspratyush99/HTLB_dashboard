@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, Download, ExternalLink, Loader2, Trash2, Upload, UserRound, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, Download, ExternalLink, Loader2, Tag as TagIcon, Trash2, Upload, UserRound, Users } from "lucide-react";
+import { toast } from "sonner";
+import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { describeEvent, type HistoryEvent } from "@/lib/candidates/history";
@@ -65,6 +67,17 @@ export function CandidateDrawer({
     load();
   }, [load]);
 
+  const [reschedSaving, setReschedSaving] = useState(false);
+  async function toggleRescheduled() {
+    if (!detail) return;
+    setReschedSaving(true);
+    const { error } = await supabase.rpc("set_rescheduled", { p_ids: [detail.id], p_value: !detail.rescheduled });
+    setReschedSaving(false);
+    if (error) return toast.error("Couldn't save", { description: error.message });
+    toast.success(detail.rescheduled ? "Rescheduled removed" : "Marked Rescheduled");
+    afterChange();
+  }
+
   const afterChange = () => {
     load();
     onChanged();
@@ -97,6 +110,8 @@ export function CandidateDrawer({
               </DialogDescription>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge color={detail.stage_color} className="px-2.5 py-1 text-sm">{detail.stage_name}</Badge>
+                {detail.tag_name && <Badge color={detail.tag_color} className="px-2.5 py-1 text-sm">Tag {detail.tag_name}</Badge>}
+                {detail.rescheduled && <Badge color={RESCHEDULED_COLOR} className="px-2.5 py-1 text-sm">Rescheduled</Badge>}
                 {detail.interviewer_name && <Badge color={detail.interviewer_color} className="px-2.5 py-1 text-sm">{detail.interviewer_name}</Badge>}
                 <span className="text-xs text-muted-foreground">in this stage since {formatDate(detail.stage_changed_at)}</span>
               </div>
@@ -104,6 +119,12 @@ export function CandidateDrawer({
                 <Button size="sm" onClick={() => setMoveOpen(true)}><ArrowRightLeft /> Move stage…</Button>
                 {!viewer?.interviewerOnly && (
                   <Button size="sm" variant="outline" onClick={() => setInterviewerOpen(true)}><Users /> Interviewer…</Button>
+                )}
+                {stages.find((st) => st.id === detail.stage_id)?.requires_interviewer && (
+                  <Button size="sm" variant="outline" disabled={reschedSaving} onClick={toggleRescheduled}>
+                    {reschedSaving ? <Loader2 className="animate-spin" /> : <CalendarClock />}
+                    {detail.rescheduled ? "Remove Rescheduled" : "Mark Rescheduled"}
+                  </Button>
                 )}
                 {detail.profile_url && (
                   <Button size="sm" variant="outline" asChild>
@@ -179,7 +200,7 @@ export function CandidateDrawer({
                   <ol className="relative space-y-4 border-l pl-5">
                     {history.map((e, i) => {
                       const { title, note } = describeEvent(e);
-                      const Icon = e.kind === "added" ? Upload : e.kind === "export" ? Download : e.kind === "interviewer_change" ? UserRound : ArrowRightLeft;
+                      const Icon = e.kind === "added" ? Upload : e.kind === "export" ? Download : e.kind === "interviewer_change" ? UserRound : e.kind === "tag_change" ? TagIcon : e.kind === "reschedule" ? CalendarClock : ArrowRightLeft;
                       return (
                         <li key={i} className="relative">
                           <span

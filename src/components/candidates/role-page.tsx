@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { createClient, getCurrentProfile, toViewer } from "@/lib/supabase/server";
-import type { FilterOptions, Interviewer, Role, Stage } from "@/lib/candidates/types";
+import type { FilterOptions, Interviewer, Role, ShortlistTag, Stage } from "@/lib/candidates/types";
 import { RoleTab } from "./role-tab";
 
 const EMPTY_OPTIONS: FilterOptions = {
@@ -17,11 +17,12 @@ const EMPTY_OPTIONS: FilterOptions = {
 /** Server part of a role tab: loads stages, interviewers and filter pick-lists, then hands over to the table. */
 export async function RolePage({ role }: { role: Role }) {
   const supabase = await createClient();
-  const [profile, stages, interviewers, options] = await Promise.all([
+  const [profile, stages, interviewers, options, tags] = await Promise.all([
     getCurrentProfile(),
-    supabase.from("stages").select("id, name, color, position, requires_interviewer").order("position"),
+    supabase.from("stages").select("id, name, color, position, requires_interviewer, is_default").order("position"),
     supabase.from("interviewers").select("id, name, color, is_active").order("name"),
     supabase.rpc("candidate_filter_options", { p_role: role }),
+    supabase.from("shortlist_tags").select("id, name, color, position").order("position"),
   ]);
 
   if (options.error) {
@@ -42,6 +43,7 @@ export async function RolePage({ role }: { role: Role }) {
       <RoleTab
         role={role}
         viewer={toViewer(profile)}
+        tags={(tags.data ?? []) as ShortlistTag[]}
         stages={(stages.data ?? []) as Stage[]}
         interviewers={(interviewers.data ?? []) as Interviewer[]}
         options={{ ...EMPTY_OPTIONS, ...((options.data ?? {}) as Partial<FilterOptions>) }}

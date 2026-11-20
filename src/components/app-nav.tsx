@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { signOut } from "@/app/actions/auth";
+import { logout } from "@/lib/logout";
 import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import type { Viewer } from "@/lib/viewer";
@@ -52,6 +52,7 @@ export function AppNav({ user, viewer }: Props) {
   // Interviewer logins only see their own candidates: no uploads or settings.
   const items = NAV.filter((n) => !(n.fullOnly && viewer?.interviewerOnly));
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]); // close the phone menu after navigating
 
   const initials = user.full_name
@@ -100,13 +101,16 @@ export function AppNav({ user, viewer }: Props) {
           <DropdownMenuContent align="end">
             <UserLabel user={user} viewer={viewer} />
             <DropdownMenuSeparator />
-            <form action={signOut}>
-              <DropdownMenuItem asChild>
-                <button type="submit" className="w-full">
-                  <LogOut /> Log out
-                </button>
-              </DropdownMenuItem>
-            </form>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setLoggingOut(true);
+                void logout();
+              }}
+              disabled={loggingOut}
+            >
+              <LogOut /> {loggingOut ? "Logging out…" : "Log out"}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -147,11 +151,17 @@ export function AppNav({ user, viewer }: Props) {
                     <div className="truncate text-xs text-muted-foreground">{user.email}</div>
                   </div>
                 </div>
-                <form action={signOut}>
-                  <button type="submit" className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-destructive hover:bg-red-50">
-                    <LogOut className="size-4" /> Log out
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  disabled={loggingOut}
+                  onClick={() => {
+                    setLoggingOut(true);
+                    void logout();
+                  }}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-destructive hover:bg-red-50 disabled:opacity-60"
+                >
+                  <LogOut className="size-4" /> {loggingOut ? "Logging out…" : "Log out"}
+                </button>
               </div>
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
