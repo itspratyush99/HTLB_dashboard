@@ -307,11 +307,11 @@ export function TestResultsWizard() {
 
 const pctText = (p: number | null) => (p === null ? "—" : `${p}%`);
 
-function RoleTag({ role }: { role: string }) {
+export function RoleTag({ role }: { role: string }) {
   return <Badge color={ROLE_COLORS[role]}>{role}</Badge>;
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: "positive" | "warning" | "danger" }) {
+export function Stat({ label, value, tone }: { label: string; value: number; tone?: "positive" | "warning" | "danger" }) {
   return (
     <div className={cn("glass rounded-2xl p-3", tone === "positive" && "bg-emerald-50/80", tone === "warning" && "bg-amber-50/80", tone === "danger" && "bg-red-50/80")}>
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -320,7 +320,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "po
   );
 }
 
-function List({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
+export function List({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
   if (!rows.length) return <div className="glass rounded-2xl border-dashed p-6 text-sm text-muted-foreground">{empty}</div>;
   return (
     <div className="glass overflow-hidden rounded-2xl">

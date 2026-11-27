@@ -63,7 +63,7 @@ export function classifyRows(rows: DedupeKey[], existing: ExistingCandidate[]): 
   };
   // Test-file people, by role + phone; each can be completed by one row only.
   const testFile = new Map<string, ExistingCandidate>();
-  for (const c of existing) if (c.origin === "test_file" && c.primary_phone) testFile.set(`${c.role}|${c.primary_phone}`, c);
+  for (const c of existing) if (c.origin && c.origin !== "naukri" && c.primary_phone) testFile.set(`${c.role}|${c.primary_phone}`, c);
   const completed = new Set<string>();
 
   for (const c of existing) {

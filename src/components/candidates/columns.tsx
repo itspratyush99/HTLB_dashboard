@@ -7,7 +7,8 @@ import { ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import type { CandidateRow } from "@/lib/candidates/types";
 import { Badge } from "@/components/ui/badge";
-import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
+import { RESCHEDULED_COLOR, sourceLabel } from "@/lib/candidates/rescheduled";
+import { formatInterviewTime } from "@/lib/interview-list/parse";
 
 /** Things a cell can do, e.g. open the candidate detail panel. */
 export interface CellContext {
@@ -74,7 +75,7 @@ export const BASE_COLUMNS: Column[] = [
     label: "Tag",
     sort: "tag",
     defaultVisible: true,
-    render: (r, ctx) => (r.rescheduled ? <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge> : r.tag_name ? <Badge color={r.tag_color}>{r.tag_name}</Badge> : r.stage_id === ctx.shortlistedStageId ? <span className="text-xs text-muted-foreground">No tag</span> : r.source === "test_file" ? <Badge color="#64748b">From test file</Badge> : <Dash />),
+    render: (r, ctx) => (r.rescheduled ? <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge> : r.tag_name ? <Badge color={r.tag_color}>{r.tag_name}</Badge> : r.stage_id === ctx.shortlistedStageId ? <span className="text-xs text-muted-foreground">No tag</span> : r.source && r.source !== "naukri" ? <Badge color="#64748b">{sourceLabel(r.source)}</Badge> : <Dash />),
   },
   {
     key: "interviewer",
@@ -82,6 +83,13 @@ export const BASE_COLUMNS: Column[] = [
     sort: "interviewer",
     defaultVisible: true,
     render: (r) => (r.interviewer_name ? <Badge color={r.interviewer_color ?? undefined}>{r.interviewer_name}</Badge> : <Dash />),
+  },
+  {
+    key: "interview_at",
+    label: "1:1 date",
+    defaultVisible: true,
+    className: "whitespace-nowrap",
+    render: (r) => (r.interview_at ? formatInterviewTime(r.interview_at) : <Dash />),
   },
   {
     key: "primary_phone",

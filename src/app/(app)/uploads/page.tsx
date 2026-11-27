@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardCheck, Upload } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, ClipboardCheck, Upload } from "lucide-react";
 import { createClient, requireFullMember } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
@@ -27,9 +27,12 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader
         title="Upload History"
-        description="Every Naukri file and test-results file uploaded. Click a row for details."
+        description="Every Naukri file, test-results file and interviewer list uploaded. Click a row for details."
         actions={
           <>
+            <Button asChild variant="outline">
+              <Link href="/uploads/interviewer-list"><CalendarCheck /> Upload interviewer list</Link>
+            </Button>
             <Button asChild variant="outline">
               <Link href="/uploads/test-results"><ClipboardCheck /> Upload test results</Link>
             </Button>
@@ -76,11 +79,11 @@ export default async function UploadsPage({ searchParams }: { searchParams: Prom
                     <Link href={href} className="block">{content}</Link>
                   </TableCell>
                 );
-                const test = u.kind === "test_results";
+                const test = u.kind === "test_results" || u.kind === "interviewer_list";
                 return (
                   <TableRow key={u.id} className="cursor-pointer">
                     {cell(formatDateTime(u.uploaded_at), "whitespace-nowrap")}
-                    {cell(test ? <Badge color="#9a7a12">Test results</Badge> : <Badge color="#1f4d36">Naukri</Badge>)}
+                    {cell(u.kind === "interviewer_list" ? <Badge color="#7c3aed">Interviewer list</Badge> : test ? <Badge color="#9a7a12">Test results</Badge> : <Badge color="#1f4d36">Naukri</Badge>)}
                     {cell(<span title={u.file_name}>{u.file_name}</span>, "max-w-64 truncate font-medium text-primary")}
                     {cell(u.uploader?.full_name ?? "—")}
                     {cell(u.zbm_rows, "text-right tabular-nums")}

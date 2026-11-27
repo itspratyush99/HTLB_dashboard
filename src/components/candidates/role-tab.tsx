@@ -27,7 +27,8 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cleanFilters, decodeFilters, describeFilters, encodeFilters, removeFilter, type Filters } from "@/lib/candidates/filters";
 import type { CandidateRow, FilterOptions, Interviewer, Role, SearchResult, ShortlistTag, Stage } from "@/lib/candidates/types";
-import { RESCHEDULED_COLOR } from "@/lib/candidates/rescheduled";
+import { RESCHEDULED_COLOR, sourceLabel } from "@/lib/candidates/rescheduled";
+import { formatInterviewTime } from "@/lib/interview-list/parse";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -714,7 +715,8 @@ function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow;
           <Badge color={r.stage_color}>{r.stage_name}</Badge>
           {r.tag_name && <Badge color={r.tag_color ?? undefined}>{r.tag_name}</Badge>}
           {r.rescheduled && <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge>}
-          {r.source === "test_file" && <Badge color="#64748b">From test file</Badge>}
+          {r.source && r.source !== "naukri" && <Badge color="#64748b">{sourceLabel(r.source)}</Badge>}
+          {r.interview_at && <span className="text-xs text-muted-foreground">1:1 {formatInterviewTime(r.interview_at)}</span>}
           {r.interviewer_name && <Badge color={r.interviewer_color}>{r.interviewer_name}</Badge>}
         </div>
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

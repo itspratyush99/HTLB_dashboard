@@ -188,6 +188,16 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
     ) : (
       <>{who} marked the 1:1 of {singleName} as <b>Rescheduled</b></>
     );
+  } else if (g.action === "upload" && d.kind === "interviewer_list") {
+    text = (
+      <>
+        {who} uploaded the interviewer list{" "}
+        {g.upload_id ? <Link className="font-medium text-primary hover:underline" href={`/uploads/${g.upload_id}`}>{str(d.file_name)}</Link> : str(d.file_name)}{" "}
+        for <b>{str(d.interviewer)}</b>: <b>{str(d.assigned)} moved</b>{Number(d.added) > 0 ? <>, <b>{str(d.added)} added</b> to {str(d.added_role)}</> : null}, {str(d.already)} already with them
+        {Number(d.rescheduled) > 0 ? <>, {str(d.rescheduled)} marked Rescheduled</> : null}
+        {Number(d.other_interviewer_skipped) > 0 ? <>, {str(d.other_interviewer_skipped)} left with another interviewer</> : null}
+      </>
+    );
   } else if (g.action === "upload" && d.kind === "test_results") {
     text = (
       <>
@@ -202,7 +212,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
         {who} uploaded{" "}
         {g.upload_id ? <Link className="font-medium text-primary hover:underline" href={`/uploads/${g.upload_id}`}>{str(d.file_name)}</Link> : str(d.file_name)}: <b>{str(d.new_added)} new</b>
         {" "}(ZBM {str(d.zbm_added)} · HOS {str(d.hos_added)}), {str(d.duplicates_skipped)} duplicates skipped
-        {Number(d.completed) > 0 ? <>, details filled in for <b>{str(d.completed)}</b> from a test file</> : null}
+        {Number(d.completed) > 0 ? <>, details filled in for <b>{str(d.completed)}</b> added earlier from a file</> : null}
         {d.failed ? <span className="text-amber-700"> · stopped part-way</span> : null}
       </>
     );

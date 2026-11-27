@@ -182,10 +182,10 @@ export interface SameNameCandidate {
   stage_name: string;
 }
 
-export interface NewPeoplePlan {
-  toAdd: TestRow[]; // not in the tracker → added from the file
-  sameName: { row: TestRow; matches: SameNameCandidate[] }[]; // same name already in this role → probably the same person
-  noName: TestRow[]; // no name in the file → can't be added
+export interface NewPeoplePlan<R extends { name: string | null } = TestRow> {
+  toAdd: R[]; // not in the tracker → added from the file
+  sameName: { row: R; matches: SameNameCandidate[] }[]; // same name already in this role → probably the same person
+  noName: R[]; // no name in the file → can't be added
 }
 
 /**
@@ -194,10 +194,10 @@ export interface NewPeoplePlan {
  * • rows whose name already exists in that role (probably the same person who used another mobile on
  *   Naukri). These are only added when includeSameName is ticked.
  */
-export function planNewPeople(notFound: TestRow[], sameNames: SameNameCandidate[], includeSameName: boolean): NewPeoplePlan {
+export function planNewPeople<R extends { name: string | null }>(notFound: R[], sameNames: SameNameCandidate[], includeSameName: boolean): NewPeoplePlan<R> {
   const byName = new Map<string, SameNameCandidate[]>();
   for (const c of sameNames) byName.set(c.name_norm, [...(byName.get(c.name_norm) ?? []), c]);
-  const plan: NewPeoplePlan = { toAdd: [], sameName: [], noName: [] };
+  const plan: NewPeoplePlan<R> = { toAdd: [], sameName: [], noName: [] };
   for (const row of notFound) {
     if (!row.name) {
       plan.noName.push(row);

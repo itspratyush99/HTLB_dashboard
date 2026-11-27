@@ -40,7 +40,7 @@ export function UploadPreview(props: UploadPreviewProps) {
         <Stat label="ZBM rows" value={plan.counts.zbm} />
         <Stat label="HOS rows" value={plan.counts.hos} />
         <Stat label="New candidates" value={plan.newRows.length} tone="positive" icon={CheckCircle2} />
-        <Stat label={plan.completeRows.length ? `Duplicates skipped · ${plan.completeRows.length} from test file completed` : "Duplicates skipped"} value={plan.exactRows.length + plan.completeRows.length} icon={Copy} />
+        <Stat label={plan.completeRows.length ? `Duplicates skipped · ${plan.completeRows.length} added-from-file completed` : "Duplicates skipped"} value={plan.exactRows.length + plan.completeRows.length} icon={Copy} />
         <Stat label="Possible duplicates" value={plan.possibleRows.length} tone={plan.possibleRows.length ? "warning" : undefined} icon={HelpCircle} />
         <Stat label="Unassigned role" value={plan.unassignedRows.length} tone={plan.unassignedRows.length ? "warning" : undefined} icon={AlertTriangle} />
         <Stat label="Rows with errors" value={plan.counts.errors} tone={plan.counts.errors ? "danger" : undefined} icon={Ban} />
@@ -56,7 +56,7 @@ export function UploadPreview(props: UploadPreviewProps) {
           <TabsTrigger value="possible">Possible duplicates <Count n={plan.possibleRows.length} warn /></TabsTrigger>
           <TabsTrigger value="unassigned">Unassigned <Count n={plan.unassignedRows.length} warn /></TabsTrigger>
           <TabsTrigger value="exact">Duplicates skipped <Count n={plan.exactRows.length} /></TabsTrigger>
-          {plan.completeRows.length > 0 && <TabsTrigger value="complete">From test file <Count n={plan.completeRows.length} /></TabsTrigger>}
+          {plan.completeRows.length > 0 && <TabsTrigger value="complete">Added earlier from a file <Count n={plan.completeRows.length} /></TabsTrigger>}
           <TabsTrigger value="errors">Errors <Count n={parse.errors.length} danger /></TabsTrigger>
           <TabsTrigger value="warnings">Warnings <Count n={warningsCount} /></TabsTrigger>
         </TabsList>
@@ -105,7 +105,7 @@ export function UploadPreview(props: UploadPreviewProps) {
 
         <TabsContent value="complete">
           <Explain>
-            These people were added earlier from a test-results file (same role and mobile). They are not added again:
+            These people were added earlier from a test-results file or interviewer list (same role and mobile). They are not added again:
             their missing details are filled in from this file, and their stage, tags and history stay as they are.
           </Explain>
           <CompleteList rows={plan.completeRows} />
