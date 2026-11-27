@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Person = { id?: string; name: string | null; role?: string; phone: string; stage?: string; interviewer?: string | null; when?: string | null; old_when?: string | null; row?: number; existing?: { phone: string | null; stage: string }[] };
+type Person = { id?: string; name: string | null; file_name?: string | null; matched_by?: string; reason?: string; role?: string; phone: string; stage?: string; interviewer?: string | null; when?: string | null; old_when?: string | null; row?: number; existing?: { phone: string | null; stage: string }[] };
 interface Summary {
   interviewer?: string;
   stage?: string;
@@ -20,6 +20,9 @@ interface Summary {
   other_interviewer?: Person[];
   already?: Person[];
   further?: Person[];
+  similar?: Person[];
+  include_similar?: boolean;
+  ambiguous?: Person[];
   time_changed?: Person[];
   added?: Person[];
   same_name?: Person[];
@@ -32,14 +35,16 @@ export function InterviewListDetail({ upload }: { upload: Record<string, unknown
   const role = (r?: string) => (r ? <Badge color={ROLE_COLORS[r]}>{r}</Badge> : "—");
   const t = formatInterviewTime;
   const tabs: [string, string, Person[], string[], (p: Person) => React.ReactNode[], string?][] = [
-    ["assigned", "Moved", s.assigned ?? [], ["Name", "Role", "Mobile", "Stage before", "1:1 time"], (p) => [p.name, role(p.role), p.phone, p.stage, t(p.when)]],
+    ["assigned", "Moved", s.assigned ?? [], ["Name", "Role", "Found by", "Mobile", "Stage before", "1:1 time"], (p) => [p.name, role(p.role), p.matched_by ?? "mobile", p.phone, p.stage, t(p.when)]],
+    ["similar", s.include_similar ? "Similar name · included" : "Similar name · not changed", s.similar ?? [], ["Name in file", "Name in tracker", "Role", "Stage"], (p) => [p.file_name, p.name, role(p.role), p.stage]],
+    ["ambiguous", "More than one match", s.ambiguous ?? [], ["Name in file", "People in tracker"], (p) => [p.name, (p.existing ?? []).map((e) => `${e.stage} · ${e.phone ?? "no mobile"}`).join("  |  ")]],
     ["added", `Added${s.added_role ? ` to ${s.added_role}` : ""}`, s.added ?? [], ["Name", "Role", "Mobile", "1:1 time"], (p) => [p.name, role(p.role), p.phone, t(p.when)]],
     ["other", s.reassign ? "Moved from another interviewer" : "Left with another interviewer", s.other_interviewer ?? [], ["Name", "Role", "Mobile", "Interviewer before"], (p) => [p.name, role(p.role), p.phone, p.interviewer]],
     ["time", s.mark_rescheduled ? "New time · marked Rescheduled" : "New booking time", s.time_changed ?? [], ["Name", "Role", "Interviewer", "Old time", "New time"], (p) => [p.name, role(p.role), p.interviewer, t(p.old_when), t(p.when)]],
     ["already", `Already with ${s.interviewer ?? "them"}`, s.already ?? [], ["Name", "Role", "Mobile", "1:1 time"], (p) => [p.name, role(p.role), p.phone, t(p.when ?? p.old_when)]],
     ["further", "Further along", s.further ?? [], ["Name", "Role", "Mobile", "Stage"], (p) => [p.name, role(p.role), p.phone, p.stage]],
     ["same", "Same name in tracker", s.same_name ?? [], ["Name", "Mobile in file", "Already in tracker"], (p) => [p.name, p.phone, (p.existing ?? []).map((e) => `${e.phone ?? "no mobile"} · ${e.stage}`).join(", ")]],
-    ["notfound", s.added ? "No name" : "Not in tracker", s.not_found ?? [], ["Row", "Name", "Mobile"], (p) => [p.row, p.name, p.phone]],
+    ["notfound", "Not in tracker, not added", s.not_found ?? [], ["Row", "Name", "Mobile", "Why"], (p) => [p.row, p.name, p.phone, p.reason]],
   ];
   const shown = tabs.filter(([key, , list]) => list.length || key === "assigned");
   return (

@@ -14,7 +14,9 @@ import type { Role } from "@/lib/naukri/types";
 export interface ListRow {
   rowNumber: number;
   name: string | null;
-  phone: string; // 10-digit mobile
+  phone: string | null; // 10-digit mobile, if the file has one
+  nameNorm: string | null;
+  emailNorm: string | null;
   email: string | null;
   whenText: string | null; // booking time as written in the file
   when: string | null; // ISO time (India time when the file has no time zone), or null if unreadable
@@ -24,7 +26,7 @@ export interface ListRow {
 export interface ListFile {
   rows: ListRow[];
   errors: { rowNumber: number; name: string | null; message: string }[];
-  duplicatesInFile: number; // same mobile listed again: the latest booking is kept
+  duplicatesInFile: number; // same person listed again: the latest booking is kept
   missingColumns: string[];
   columns: { mobile?: string; name?: string; email?: string; when?: string; date?: string; time?: string };
 }
@@ -40,25 +42,34 @@ const find = (headers: string[], tests: RegExp[], not: string[] = []) => {
 
 export function parseInterviewFile(sheet: SheetData): ListFile {
   const h = sheet.headers;
-  const mobile = find(h, [/^mobile( number)?$/, /^phone( number)?$/, /invitee.*(phone|mobile)/, /attendee.*(phone|mobile)/, /mobile/, /phone/, /whatsapp/, /contact/]);
-  const name = find(h, [/^name$/, /^(invitee|attendee|candidate|guest|customer|client) name$/, /full name/, /name/].map((r) => r), [mobile ?? ""]);
-  const email = find(h, [/^email( id| address)?$/, /(invitee|attendee|candidate|guest) email/, /e-?mail/]);
+  const mobile = find(h, [/^mobile( number| no\.?)?$/, /^phone( number| no\.?)?$/, /(invitee|attendee|candidate|guest|participant).*(phone|mobile)/, /mobile/, /phone/, /whatsapp/, /contact( number| no\.?)?$/]);
+  const email = find(h, [/^e-?mail( id| address)?$/, /(invitee|attendee|candidate|guest|participant) e-?mail/, /e-?mail/], [mobile ?? ""]);
+  const name = find(
+    h,
+    [/^name$/, /^(invitee|attendee|candidate|guest|customer|client|participant|student|applicant) name$/, /full name/, /^(candidate|invitee|attendee|participant|guest|applicant|student)$/, /name/],
+    [mobile ?? "", email ?? ""],
+  );
   // One date+time column, or separate date and time columns.
-  const when = find(h, [/^booking at$/, /^booked? (at|for)$/, /start (date )?time/, /^start$/, /scheduled (at|for|time)/, /(event|meeting|interview|appointment|slot) (start|time|date)/, /date ?time/, /^slot$/]);
-  const date = when ? undefined : find(h, [/^(booking |meeting |interview |event |appointment )?date$/, /date/], [mobile ?? "", name ?? "", email ?? ""]);
-  const time = when ? undefined : find(h, [/^(booking |meeting |interview |event |start )?time$/, /start/], [mobile ?? "", name ?? "", date ?? ""]);
+  let when = find(h, [/^booking at$/, /^booked? (at|for)$/, /start (date )?time/, /^start$/, /scheduled (at|for|time|on)/, /(event|meeting|interview|appointment|session|slot) (start|time|date)/, /date ?time/, /^slot$/]);
+  // "Session Date" + "Session Time": a date-only column is combined with the time column.
+  if (when && /date$/.test(norm(when)) && !/date ?time/.test(norm(when)) && find(h, [/time$/], [when])) when = undefined;
+  const date = when ? undefined : find(h, [/^(booking |meeting |interview |event |appointment |session )?date$/, /date/], [mobile ?? "", name ?? "", email ?? ""]);
+  const time = when ? undefined : find(h, [/^(booking |meeting |interview |event |session |appointment |slot |start )?time$/, /time$/, /start/], [mobile ?? "", name ?? "", date ?? ""]);
   const columns = { mobile, name, email, when, date, time };
-  if (!mobile) return { rows: [], errors: [], duplicatesInFile: 0, missingColumns: ["Mobile"], columns };
+  if (!mobile && !name && !email) return { rows: [], errors: [], duplicatesInFile: 0, missingColumns: ["Name / Mobile / Email"], columns };
 
   const errors: ListFile["errors"] = [];
-  const byPhone = new Map<string, ListRow>();
+  const byKey = new Map<string, ListRow>();
   let duplicates = 0;
   sheet.rows.forEach((r) => {
     const v = (c?: string): CellValue => (c ? r.values[c] : null);
     const rowName = plainText(v(name));
     const phone = parsePhones(v(mobile)).primary;
-    if (!phone) {
-      if (plainText(v(mobile)) || rowName) errors.push({ rowNumber: r.rowNumber, name: rowName, message: `No valid 10-digit mobile ("${plainText(v(mobile)) ?? "empty"}")` });
+    const rowEmail = parseEmails(v(email)).primary;
+    const nameNorm = rowName ? normaliseName(rowName) || null : null;
+    const emailNorm = normaliseEmail(rowEmail);
+    if (!nameNorm && !phone && !emailNorm) {
+      if (Object.values(r.values).some((x) => plainText(x))) errors.push({ rowNumber: r.rowNumber, name: rowName, message: "No name, valid mobile or email" });
       return;
     }
     const whenValue: CellValue = when ? v(when) : date ? combineDateTime(v(date), v(time)) : null;
@@ -66,19 +77,29 @@ export function parseInterviewFile(sheet: SheetData): ListFile {
       rowNumber: r.rowNumber,
       name: rowName,
       phone,
-      email: parseEmails(v(email)).primary,
+      email: rowEmail,
+      nameNorm,
+      emailNorm,
       whenText: plainText(whenValue),
       when: parseBookingTime(whenValue),
       raw: Object.fromEntries(h.map((k) => [k, plainText(r.values[k])])),
     };
-    const prev = byPhone.get(phone);
+    const key = phone ? `p:${phone}` : emailNorm ? `e:${emailNorm}` : `n:${nameNorm}`;
+    const prev = byKey.get(key);
     if (prev) {
       duplicates++;
       // Keep the latest booking (a rebooked slot usually appears again).
-      if (!prev.when || (row.when && row.when > prev.when)) byPhone.set(phone, { ...row, name: row.name ?? prev.name, email: row.email ?? prev.email });
-    } else byPhone.set(phone, row);
+      if (!prev.when || (row.when && row.when > prev.when)) byKey.set(key, { ...row, name: row.name ?? prev.name, nameNorm: row.nameNorm ?? prev.nameNorm, email: row.email ?? prev.email, emailNorm: row.emailNorm ?? prev.emailNorm });
+    } else byKey.set(key, row);
   });
-  return { rows: [...byPhone.values()], errors, duplicatesInFile: duplicates, missingColumns: [], columns };
+  return { rows: [...byKey.values()], errors, duplicatesInFile: duplicates, missingColumns: [], columns };
+}
+
+/** "rahul kumar sharma" → "rahul sharma" (first + last word), for similar-name matches. */
+export function nameKey(nameNorm: string | null): string | null {
+  if (!nameNorm) return null;
+  const w = nameNorm.split(" ").filter(Boolean);
+  return w.length ? `${w[0]} ${w[w.length - 1]}` : null;
 }
 
 function combineDateTime(d: CellValue, t: CellValue): CellValue {
@@ -158,12 +179,15 @@ export function interviewerFromFileName<T extends { id: number; name: string }>(
   return hits.length === 1 ? hits[0] : null;
 }
 
-/** A saved candidate found by mobile (from find_candidates_by_phone). */
+/** A saved candidate found by name / mobile / email (from find_candidates_for_list). */
 export interface FoundPerson {
   id: string;
   role: Role;
   name: string;
-  primary_phone: string;
+  name_norm?: string | null;
+  name_key?: string | null;
+  email_norm?: string | null;
+  primary_phone: string | null;
   stage_id: number;
   stage_name: string;
   stage_position: number;
@@ -172,39 +196,91 @@ export interface FoundPerson {
   interview_at: string | null;
 }
 
-type Pair = { row: ListRow; candidate: FoundPerson };
+export type MatchedBy = "name" | "mobile" | "email" | "similar name";
+export type Pair = { row: ListRow; candidate: FoundPerson; matchedBy: MatchedBy };
 export interface ListPlan {
   toAssign: Pair[]; // moves to 1:1 Aligned with the chosen interviewer
   otherInterviewer: Pair[]; // already in 1:1 Aligned with someone else → only if ticked
   already: Pair[]; // already in 1:1 Aligned with this interviewer
   further: Pair[]; // past 1:1 Aligned → not changed
-  notFound: ListRow[];
+  similar: Pair[]; // only a similar name matched (e.g. middle name missing) → counted only if ticked
+  ambiguous: { row: ListRow; matches: FoundPerson[] }[]; // more than one person with that name, nothing else to tell them apart
+  notFound: ListRow[]; // not in the tracker (can be added when the file has their mobile)
   timeChanged: Pair[]; // in 1:1 already, with a different booking time saved → can be marked Rescheduled
 }
 
 /**
- * Who goes where. A person in both ZBM and HOS is handled in both.
- * Booking times: compared to the minute.
+ * Finds each row in the tracker: by name first, then mobile, then email, then a similar name.
+ * A person may be in both ZBM and HOS: one match per role is used, so they're handled in both.
+ * When a name fits several people in the same role, the mobile / email picks the right one;
+ * if that can't decide, the row is listed as "more than one match" and nothing changes.
  */
-export function planInterviewList(file: ListFile, found: FoundPerson[], opts: { oneToOne: { id: number; position: number }; interviewerId: number }): ListPlan {
-  const byPhone = new Map<string, FoundPerson[]>();
-  for (const c of found) byPhone.set(c.primary_phone, [...(byPhone.get(c.primary_phone) ?? []), c]);
-  const plan: ListPlan = { toAssign: [], otherInterviewer: [], already: [], further: [], notFound: [], timeChanged: [] };
+export function matchRow(row: ListRow, found: FoundPerson[]): { pairs: Pair[]; ambiguous: FoundPerson[] | null; similar: boolean } {
+  const tieBreak = (list: FoundPerson[]) => {
+    const byPhone = row.phone ? list.filter((c) => c.primary_phone === row.phone) : [];
+    if (byPhone.length) return byPhone;
+    const byEmail = row.emailNorm ? list.filter((c) => c.email_norm === row.emailNorm) : [];
+    return byEmail.length ? byEmail : list;
+  };
+  const perRole = (list: FoundPerson[], by: MatchedBy) => {
+    const pairs: Pair[] = [];
+    let ambiguous: FoundPerson[] | null = null;
+    for (const role of ["ZBM", "HOS"] as const) {
+      const inRole = tieBreak(list.filter((c) => c.role === role));
+      if (inRole.length === 1) pairs.push({ row, candidate: inRole[0], matchedBy: by });
+      else if (inRole.length > 1) ambiguous = [...(ambiguous ?? []), ...inRole];
+    }
+    return { pairs, ambiguous };
+  };
+  const tries: [FoundPerson[], MatchedBy][] = [
+    [row.nameNorm ? found.filter((c) => c.name_norm === row.nameNorm) : [], "name"],
+    [row.phone ? found.filter((c) => c.primary_phone === row.phone) : [], "mobile"],
+    [row.emailNorm ? found.filter((c) => c.email_norm === row.emailNorm) : [], "email"],
+  ];
+  for (const [list, by] of tries) {
+    if (!list.length) continue;
+    const r = perRole(list, by);
+    if (r.pairs.length || r.ambiguous) return { pairs: r.pairs, ambiguous: r.pairs.length ? null : r.ambiguous, similar: false };
+  }
+  const key = nameKey(row.nameNorm);
+  const similar = key ? found.filter((c) => c.name_key === key) : [];
+  if (similar.length) {
+    const r = perRole(similar, "similar name");
+    return { pairs: r.pairs, ambiguous: r.pairs.length ? null : r.ambiguous, similar: true };
+  }
+  return { pairs: [], ambiguous: null, similar: false };
+}
+
+/** Who goes where. Booking times are compared to the minute. */
+export function planInterviewList(
+  file: ListFile,
+  found: FoundPerson[],
+  opts: { oneToOne: { id: number; position: number }; interviewerId: number; includeSimilar?: boolean },
+): ListPlan {
+  const plan: ListPlan = { toAssign: [], otherInterviewer: [], already: [], further: [], similar: [], ambiguous: [], notFound: [], timeChanged: [] };
   const minute = (t: string | null) => (t ? Math.floor(new Date(t).getTime() / 60000) : null);
   for (const row of file.rows) {
-    const matches = byPhone.get(row.phone) ?? [];
-    if (!matches.length) {
+    const m = matchRow(row, found);
+    if (m.ambiguous) {
+      plan.ambiguous.push({ row, matches: m.ambiguous });
+      continue;
+    }
+    if (!m.pairs.length) {
       plan.notFound.push(row);
       continue;
     }
-    for (const candidate of matches) {
-      const pair = { row, candidate };
-      const inOne = candidate.stage_id === opts.oneToOne.id;
-      if (candidate.stage_position > opts.oneToOne.position) plan.further.push(pair);
-      else if (inOne && candidate.interviewer_id === opts.interviewerId) plan.already.push(pair);
-      else if (inOne && candidate.interviewer_id !== null) plan.otherInterviewer.push(pair);
+    if (m.similar) {
+      plan.similar.push(...m.pairs);
+      if (!opts.includeSimilar) continue;
+    }
+    for (const pair of m.pairs) {
+      const c = pair.candidate;
+      const inOne = c.stage_id === opts.oneToOne.id;
+      if (c.stage_position > opts.oneToOne.position) plan.further.push(pair);
+      else if (inOne && c.interviewer_id === opts.interviewerId) plan.already.push(pair);
+      else if (inOne && c.interviewer_id !== null) plan.otherInterviewer.push(pair);
       else plan.toAssign.push(pair);
-      if (inOne && row.when && candidate.interview_at && minute(row.when) !== minute(candidate.interview_at)) plan.timeChanged.push(pair);
+      if (inOne && row.when && c.interview_at && minute(row.when) !== minute(c.interview_at)) plan.timeChanged.push(pair);
     }
   }
   return plan;
@@ -219,7 +295,7 @@ export function toNewInterviewCandidate(row: ListRow) {
     primary_phone: row.phone,
     phone_raw: Object.entries(row.raw).find(([k]) => /mobile|phone/i.test(k))?.[1] ?? row.phone,
     email: row.email,
-    email_norm: normaliseEmail(row.email),
+    email_norm: row.emailNorm,
     interview_at: row.when,
     raw: row.raw,
   };
