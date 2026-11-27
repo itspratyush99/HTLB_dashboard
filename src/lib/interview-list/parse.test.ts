@@ -29,17 +29,21 @@ describe("reading a booking export", () => {
   it("finds columns with booking-tool names and keeps the latest booking per mobile", () => {
     const f = csv('Invitee Name,Invitee Email,Phone Number,Start Time,Event Type\nRavi Kumar,ravi@x.com,+91 98765 43210,27/11/2026 3:00 PM,1:1 Parul\nRavi Kumar,,9876543210,28/11/2026 11:00 AM,1:1 Parul\nAsha,,12345,27/11/2026 4:00 PM,1:1 Parul\n');
     expect(f.columns).toMatchObject({ name: "Invitee Name", mobile: "Phone Number", email: "Invitee Email", when: "Start Time" });
-    expect(f.rows).toHaveLength(1);
+    expect(f.rows).toHaveLength(2);
     expect(f.rows[0]).toMatchObject({ name: "Ravi Kumar", phone: "9876543210", email: "ravi@x.com", when: ist("2026-11-28T11:00") });
+    expect(f.rows[1]).toMatchObject({ name: "Asha", phone: null }); // bad mobile: still matched by name
     expect(f.duplicatesInFile).toBe(1);
-    expect(f.errors).toHaveLength(1);
+    expect(f.errors).toHaveLength(0);
   });
   it("reads the Bulk Sender CSV and separate date + time columns", () => {
     expect(csv("Name,Mobile Number,Source,Tags,booking_at\nRavi,919876543210,ORGANIC,,2026-11-27 15:00\n").rows[0]).toMatchObject({ phone: "9876543210", when: ist("2026-11-27T15:00") });
     expect(csv("Name,Mobile,Date,Time\nRavi,9876543210,27/11/2026,3:00 PM\n").rows[0].when).toBe(ist("2026-11-27T15:00"));
   });
-  it("needs a mobile column", () => {
-    expect(csv("Name,Email\nA,a@x.com\n").missingColumns).toEqual(["Mobile"]);
+  it("needs a name, mobile or email column — any one is enough", () => {
+    expect(csv("Name,Session Date\nRavi Kumar,27/11/2026 3:00 PM\n").rows[0]).toMatchObject({ nameNorm: "ravi kumar", phone: null, when: ist("2026-11-27T15:00") });
+    expect(csv("Candidate,Slot\nRavi Kumar,27/11/2026\n").columns).toMatchObject({ name: "Candidate", when: "Slot" });
+    expect(csv("Remarks,Slot\ngood,27/11/2026\n").missingColumns).toEqual(["Name / Mobile / Email"]);
+    expect(csv("Candidate Name,Session Date,Session Time\nRavi,27/11/2026,3:00 PM\n").rows[0].when).toBe(ist("2026-11-27T15:00"));
   });
   it("spots the interviewer in the file name", () => {
     const iv = [{ id: 1, name: "Parul" }, { id: 2, name: "Umer" }];
@@ -72,5 +76,35 @@ describe("who goes where", () => {
   });
   it("builds new candidates", () => {
     expect(toNewInterviewCandidate(file.rows[0])).toMatchObject({ name: "A", name_norm: "a", primary_phone: "9000000001", interview_at: ist("2026-11-27T15:00") });
+  });
+});
+
+describe("matching: name first, then mobile, then email", () => {
+  const p = (o: Partial<FoundPerson>): FoundPerson => ({
+    id: "x", role: "ZBM", name: "X", primary_phone: null, stage_id: 1, stage_name: "Shortlisted", stage_position: 1,
+    interviewer_id: null, interviewer_name: null, interview_at: null, ...o,
+  });
+  const opts = { oneToOne: { id: 4, position: 4 }, interviewerId: 3 };
+  const file = csv("Name,Mobile,Email\nRavi Kumar,,\nAsha Rao,,\nNew Person,9000000009,\nPriya Shah,9000000001,\nAmit Jain,,amit@x.com\nRahul Sharma,,\nNobody,,\n");
+  const found = [
+    p({ id: "ravi", name: "Ravi Kumar", name_norm: "ravi kumar", name_key: "ravi kumar" }),
+    p({ id: "ravi-hos", role: "HOS", name: "Ravi Kumar", name_norm: "ravi kumar", name_key: "ravi kumar" }),
+    p({ id: "asha1", name: "Asha Rao", name_norm: "asha rao", name_key: "asha rao", primary_phone: "9111111111" }),
+    p({ id: "asha2", name: "Asha Rao", name_norm: "asha rao", name_key: "asha rao", primary_phone: "9222222222" }),
+    p({ id: "priya", name: "Priya S", name_norm: "priya s", name_key: "priya s", primary_phone: "9000000001" }),
+    p({ id: "amit", name: "Amit K Jain", name_norm: "amit k jain", name_key: "amit jain", email_norm: "amit@x.com" }),
+    p({ id: "rahul", name: "Rahul Kumar Sharma", name_norm: "rahul kumar sharma", name_key: "rahul sharma" }),
+  ];
+  it("sorts every row", () => {
+    const plan = planInterviewList(file, found, opts);
+    expect(plan.toAssign.map((x) => [x.candidate.id, x.matchedBy])).toEqual([["ravi", "name"], ["ravi-hos", "name"], ["priya", "mobile"], ["amit", "email"]]);
+    expect(plan.ambiguous.map((a) => a.matches.map((m) => m.id))).toEqual([["asha1", "asha2"]]);
+    expect(plan.similar.map((x) => x.candidate.id)).toEqual(["rahul"]);
+    expect(plan.notFound.map((r) => r.name)).toEqual(["New Person", "Nobody"]);
+    expect(planInterviewList(file, found, { ...opts, includeSimilar: true }).toAssign.map((x) => x.candidate.id)).toContain("rahul");
+  });
+  it("uses the mobile to pick between two people with the same name", () => {
+    const f = csv("Name,Mobile\nAsha Rao,9222222222\n");
+    expect(planInterviewList(f, found, opts).toAssign.map((x) => x.candidate.id)).toEqual(["asha2"]);
   });
 });

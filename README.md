@@ -44,7 +44,7 @@ The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business M
    - **Region:** **South Asia (Mumbai)**.
 3. Click **Create new project** and wait 1–2 minutes.
 
-### 1.2 Create the database (11 SQL files, in order)
+### 1.2 Create the database (12 SQL files, in order)
 The files are in `supabase/migrations/`. For **each file, in this order**:
 1. Open **SQL Editor → New query**.
 2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
@@ -63,8 +63,9 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 9 | `0009_rescheduled_tag.sql` | "Rescheduled" tag for 1:1 interviews |
 | 10 | `0010_add_from_test_file.sql` | Add people from the test file who aren't in the tracker |
 | 11 | `0011_interviewer_list_upload.sql` | Interviewer-list upload and 1:1 dates |
+| 12 | `0012_interviewer_list_name_match.sql` | Interviewer list: match by name, mobile or email |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10 and 11. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10, 11 and 12. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -123,6 +124,10 @@ Whenever you receive a new version:
 1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
+
+### Name matching for the interviewer list (if you already run 0011)
+1. Run **`0012_interviewer_list_name_match.sql`** in the SQL Editor. It only adds a lookup; nothing changes.
+2. Upload the new files to GitHub and click **Commit changes**.
 
 ### Adding the interviewer-list upload (if you already run 0010)
 1. Run **`0011_interviewer_list_upload.sql`** in the SQL Editor (click **Run query** if the warning appears). No candidates change.
@@ -315,13 +320,16 @@ If the internet drops during an import, the upload shows **"Stopped part-way"** 
 
 **Upload History → Upload interviewer list.** Drop a booking / calendar export (CSV or Excel) of everyone aligned with one interviewer.
 
-- **Columns** are found by name: a mobile/phone column (required), a name column, an email column, and a booking time (*Start Time*, *booking_at*, *Date* + *Time*, …). Dates are read day-first (27/11/2026), in India time.
+- **Columns** are found by name: name, mobile/phone and email (**any one is enough**), and a booking time (*Start Time*, *booking_at*, *Session Date* + *Session Time*, …). Dates are read day-first (27/11/2026), in India time.
+- **Matching order:** **name** first (capitals and extra spaces ignored), then **mobile**, then **email**.
+  - Two people with the same name in a role → the mobile / email in the file picks the right one; if it can't, they're listed under *More than one match* and nothing changes.
+  - Only first + last name match (e.g. "Prashant Kale" vs "Prashant Suresh Kale") → listed under *Similar name*, used only if you tick it.
 - **Choose the interviewer** (Parul, Umer, …). If the file name contains their name (e.g. `Parul_bookings.csv`), they're picked for you.
 - **Matched by mobile**, in both ZBM and HOS:
-  - Earlier stages → moved to **1:1 Aligned** with that interviewer.
+  - Earlier stages → moved to **1:1 Aligned** with that interviewer. The *Found by* column says how each was matched.
   - Already in 1:1 Aligned with **another interviewer** → listed; moved only if you tick *Move these to …*.
   - Already **past** 1:1 Aligned → not moved back.
-- **Not in the tracker** → added (role from the file name, or choose it) straight into 1:1 Aligned with that interviewer, with a *From interviewer list* badge. A later Naukri upload fills in their details. Same-name matches are held back unless ticked, like the test upload.
+- **Not in the tracker** → added only when the file has their **name and mobile** (role from the file name, or choose it), straight into 1:1 Aligned with that interviewer, with a *From interviewer list* badge. A later Naukri upload fills in their details. Same-name matches are held back unless ticked, like the test upload.
 - **1:1 date:** the booking time is saved and shown in the **1:1 date** column, on phone cards and in the candidate panel.
 - **New booking time:** if someone already in 1:1 Aligned comes again with a different time, the new time is saved, and they're marked **Rescheduled** (untick to skip).
 - Everything is saved in Upload History (type *Interviewer list*) and the Activity Log. Only admins and team members can upload.
@@ -450,7 +458,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0011: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0012: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions

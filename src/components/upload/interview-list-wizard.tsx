@@ -7,12 +7,10 @@ import { ArrowRight, CalendarCheck, CheckCircle2, FileSpreadsheet, Loader2, Rota
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { readSheet } from "@/lib/naukri/read";
-import { normaliseName } from "@/lib/naukri/clean";
 import type { Role } from "@/lib/naukri/types";
-import { findByNames } from "@/lib/test-results/apply";
-import { planNewPeople, roleFromFileName, type SameNameCandidate } from "@/lib/test-results/parse";
-import { applyInterviewList, findPeopleByPhones, type ListApplyResult } from "@/lib/interview-list/apply";
-import { formatInterviewTime, interviewerFromFileName, parseInterviewFile, planInterviewList, type FoundPerson, type ListFile } from "@/lib/interview-list/parse";
+import { planNewPeople, roleFromFileName } from "@/lib/test-results/parse";
+import { applyInterviewList, findPeopleForList, type ListApplyResult } from "@/lib/interview-list/apply";
+import { formatInterviewTime, interviewerFromFileName, parseInterviewFile, planInterviewList, type FoundPerson, type ListFile, type ListRow, type Pair } from "@/lib/interview-list/parse";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,7 +20,7 @@ import { List, RoleTag, Stat } from "./test-results-wizard";
 
 type Stage = { id: number; name: string; position: number; requires_interviewer: boolean };
 type Interviewer = { id: number; name: string; color: string };
-type Loaded = { file: File; data: ListFile; found: FoundPerson[]; oneToOne: Stage; interviewers: Interviewer[]; sameNames: Record<Role, SameNameCandidate[]> };
+type Loaded = { file: File; data: ListFile; found: FoundPerson[]; oneToOne: Stage; interviewers: Interviewer[] };
 type Step =
   | { name: "pick" }
   | { name: "reading"; file: File }
@@ -43,7 +41,7 @@ export function InterviewListWizard() {
   const [markRescheduled, setMarkRescheduled] = useState(true);
   const [addNew, setAddNew] = useState(true);
   const [addRole, setAddRole] = useState<Role | null>(null);
-  const [includeSameName, setIncludeSameName] = useState(false);
+  const [includeSimilar, setIncludeSimilar] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function handleFile(file: File) {
@@ -62,20 +60,18 @@ export function InterviewListWizard() {
       if (!interviewers.length) return setStep({ name: "rejected", file, message: "No active interviewers. Add one in Settings → Interviewers first." });
 
       const data = parseInterviewFile(readSheet(buffer, file.name));
-      if (data.missingColumns.length) return setStep({ name: "rejected", file, message: "No mobile column found. The file needs a column with the phone / mobile number." });
-      if (!data.rows.length) return setStep({ name: "rejected", file, message: "No rows with a valid mobile number." });
-      const found = await findPeopleByPhones(supabase, data.rows.map((r) => r.phone));
-      const foundPhones = new Set(found.map((c) => c.primary_phone));
-      const missingNames = data.rows.filter((r) => !foundPhones.has(r.phone) && r.name).map((r) => normaliseName(r.name!));
-      const [zbm, hos] = await Promise.all([findByNames(supabase, "ZBM", missingNames), findByNames(supabase, "HOS", missingNames)]);
+      if (data.missingColumns.length)
+        return setStep({ name: "rejected", file, message: `No name, mobile or email column found. Columns in this file: ${readSheet(buffer, file.name).headers.join(", ") || "none"}.` });
+      if (!data.rows.length) return setStep({ name: "rejected", file, message: "No rows with a name, mobile or email." });
+      const found = await findPeopleForList(supabase, data.rows);
 
       setInterviewerId(interviewerFromFileName(file.name, interviewers)?.id ?? null);
       setAddRole(roleFromFileName(file.name) ?? (found.length && found.every((c) => c.role === found[0].role) ? found[0].role : null));
       setReassign(false);
       setMarkRescheduled(true);
       setAddNew(true);
-      setIncludeSameName(false);
-      setStep({ name: "preview", loaded: { file, data, found, oneToOne, interviewers, sameNames: { ZBM: zbm, HOS: hos } } });
+      setIncludeSimilar(false);
+      setStep({ name: "preview", loaded: { file, data, found, oneToOne, interviewers } });
     } catch (e) {
       setStep({ name: "rejected", file, message: e instanceof Error ? e.message : String(e) });
     }
@@ -84,18 +80,20 @@ export function InterviewListWizard() {
   const loaded = step.name === "preview" ? step.loaded : null;
   const interviewer = loaded?.interviewers.find((i) => i.id === interviewerId) ?? null;
   const plan = useMemo(
-    () => (loaded && interviewer ? planInterviewList(loaded.data, loaded.found, { oneToOne: loaded.oneToOne, interviewerId: interviewer.id }) : null),
-    [loaded, interviewer],
+    () => (loaded && interviewer ? planInterviewList(loaded.data, loaded.found, { oneToOne: loaded.oneToOne, interviewerId: interviewer.id, includeSimilar }) : null),
+    [loaded, interviewer, includeSimilar],
   );
+  // Not in the tracker: only rows with a mobile can be added (the tracker needs one).
   const people = useMemo(
-    () => (plan && loaded && addNew && addRole ? planNewPeople(plan.notFound, loaded.sameNames[addRole], includeSameName) : null),
-    [plan, loaded, addNew, addRole, includeSameName],
+    () => (plan && addNew && addRole ? planNewPeople(plan.notFound.filter((r) => r.phone), [], false) : null),
+    [plan, addNew, addRole],
   );
   const toAddCount = people?.toAdd.length ?? 0;
-  const needsRole = addNew && !addRole && (plan?.notFound.length ?? 0) > 0;
+  const needsRole = addNew && !addRole && (plan?.notFound.some((r) => r.phone && r.name) ?? false);
+  const notAddedRows: ListRow[] = plan ? plan.notFound.filter((r) => !people?.toAdd.includes(r)) : [];
   const moveCount = plan ? plan.toAssign.length + (reassign ? plan.otherInterviewer.length : 0) : 0;
   const reschedCount = plan && markRescheduled ? plan.timeChanged.filter((p) => reassign || p.candidate.interviewer_id === interviewer?.id).length : 0;
-  const notAdded = plan ? (people ? plan.notFound.length - toAddCount : plan.notFound.length) : 0;
+  const notAdded = plan ? notAddedRows.length + plan.ambiguous.length + (includeSimilar ? 0 : plan.similar.length) : 0;
   const hasTimes = !!(loaded && (loaded.data.columns.when || loaded.data.columns.date));
   const nothingToDo = !moveCount && !toAddCount && !reschedCount && !(hasTimes && plan?.already.some((p) => p.row.when));
 
@@ -112,6 +110,7 @@ export function InterviewListWizard() {
         oneToOne: loaded.oneToOne,
         reassign,
         markRescheduled,
+        includeSimilar,
         add: people && addRole ? { role: addRole, people } : null,
       });
       toast.success(`${result.assigned + result.added} now with ${interviewer.name} in ${loaded.oneToOne.name}`);
@@ -129,7 +128,7 @@ export function InterviewListWizard() {
       <div className="space-y-3">
         <Dropzone onFile={handleFile} onReject={(m) => toast.error(m)} />
         <p className="text-center text-xs text-muted-foreground">
-          A booking / calendar export (CSV or Excel) of everyone aligned with one interviewer. People are matched by mobile number, in both ZBM and HOS.
+          A booking / calendar export (CSV or Excel) of everyone aligned with one interviewer. People are found by <b>name</b> first, then mobile, then email — any of these columns is enough. Both ZBM and HOS are searched.
           Put the interviewer&apos;s name in the file name (e.g. <i>Parul_bookings.csv</i>) and they&apos;re picked for you.
         </p>
       </div>
@@ -179,6 +178,12 @@ export function InterviewListWizard() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
+              Matching by{" "}
+              {[
+                loaded.data.columns.name && <>name (<i>{loaded.data.columns.name}</i>)</>,
+                loaded.data.columns.mobile && <>mobile (<i>{loaded.data.columns.mobile}</i>)</>,
+                loaded.data.columns.email && <>email (<i>{loaded.data.columns.email}</i>)</>,
+              ].filter(Boolean).map((x, i, a) => <span key={i}>{x}{i < a.length - 1 ? ", then " : "."}</span>)}{" "}
               They move to <b>{loaded.oneToOne.name}</b> with this interviewer.
               {hasTimes
                 ? <> The booking time (column <i>{loaded.data.columns.when ?? `${loaded.data.columns.date}${loaded.data.columns.time ? ` + ${loaded.data.columns.time}` : ""}`}</i>) is saved as their 1:1 date.</>
@@ -230,19 +235,20 @@ export function InterviewListWizard() {
                 <TabsList className="flex-wrap">
                   <TabsTrigger value="move">Will move ({plan.toAssign.length})</TabsTrigger>
                   {people && <TabsTrigger value="add">Will add ({toAddCount})</TabsTrigger>}
+                  {plan.similar.length > 0 && <TabsTrigger value="similar">Similar name ({plan.similar.length})</TabsTrigger>}
+                  {plan.ambiguous.length > 0 && <TabsTrigger value="ambiguous">More than one match ({plan.ambiguous.length})</TabsTrigger>}
                   {plan.otherInterviewer.length > 0 && <TabsTrigger value="other">With another interviewer ({plan.otherInterviewer.length})</TabsTrigger>}
                   {plan.timeChanged.length > 0 && <TabsTrigger value="time">New booking time ({plan.timeChanged.length})</TabsTrigger>}
                   <TabsTrigger value="already">Already with {interviewer.name} ({plan.already.length})</TabsTrigger>
                   {plan.further.length > 0 && <TabsTrigger value="further">Further along ({plan.further.length})</TabsTrigger>}
-                  {people && people.sameName.length > 0 && <TabsTrigger value="same">Same name in tracker ({people.sameName.length})</TabsTrigger>}
-                  <TabsTrigger value="notfound">{people ? `No name (${people.noName.length})` : `Not in tracker (${plan.notFound.length})`}</TabsTrigger>
+                  <TabsTrigger value="notfound">Not in tracker{people ? ", not added" : ""} ({notAddedRows.length})</TabsTrigger>
                   {loaded.data.errors.length > 0 && <TabsTrigger value="errors">No valid mobile ({loaded.data.errors.length})</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="move">
                   <List
-                    head={["Name", "Role", "Mobile", "Stage now", "1:1 time"]}
-                    rows={plan.toAssign.map((p) => [p.candidate.name, <RoleTag key="r" role={p.candidate.role} />, p.row.phone, p.candidate.stage_name, when(p.row.when)])}
+                    head={["Name", "Role", "Found by", "Mobile", "Stage now", "1:1 time"]}
+                    rows={plan.toAssign.map((p) => [nameCell(p), <RoleTag key="r" role={p.candidate.role} />, p.matchedBy, p.candidate.primary_phone ?? "—", p.candidate.stage_name, when(p.row.when)])}
                     empty="Nobody to move."
                   />
                 </TabsContent>
@@ -250,11 +256,31 @@ export function InterviewListWizard() {
                   <TabsContent value="add">
                     <List
                       head={["Name", "Mobile", "Email", "1:1 time"]}
-                      rows={people.toAdd.map((r) => [r.name ?? "—", r.phone, r.email ?? "—", when(r.when)])}
+                      rows={people.toAdd.map((r) => [r.name ?? "—", r.phone ?? "—", r.email ?? "—", when(r.when)])}
                       empty="Nobody new to add."
                     />
                   </TabsContent>
                 )}
+                <TabsContent value="similar">
+                  <label className="mb-3 flex items-center gap-2 text-sm font-medium">
+                    <input type="checkbox" className="size-4 accent-[#1f4d36]" checked={includeSimilar} onChange={(e) => setIncludeSimilar(e.target.checked)} />
+                    These are the same people — include these {plan.similar.length}
+                  </label>
+                  <p className="mb-3 text-xs text-muted-foreground">No exact name, mobile or email match, but the first and last name match someone in the tracker (e.g. a middle name is missing). Not changed unless ticked.</p>
+                  <List
+                    head={["Name in file", "Name in tracker", "Role", "Mobile in tracker", "Stage now"]}
+                    rows={plan.similar.map((p) => [p.row.name ?? "—", p.candidate.name, <RoleTag key="r" role={p.candidate.role} />, p.candidate.primary_phone ?? "—", p.candidate.stage_name])}
+                    empty="None."
+                  />
+                </TabsContent>
+                <TabsContent value="ambiguous">
+                  <p className="mb-3 text-xs text-muted-foreground">More than one person in the tracker has this name, and the file has no mobile or email that tells them apart. Nothing changes for them; move the right one by hand.</p>
+                  <List
+                    head={["Name in file", "People in tracker"]}
+                    rows={plan.ambiguous.map((a) => [a.row.name ?? "—", a.matches.map((m) => `${m.role} · ${m.primary_phone ?? "no mobile"} · ${m.stage_name}`).join("  |  ")])}
+                    empty="None."
+                  />
+                </TabsContent>
                 <TabsContent value="other">
                   <label className="mb-3 flex items-center gap-2 text-sm font-medium">
                     <input type="checkbox" className="size-4 accent-[#1f4d36]" checked={reassign} onChange={(e) => setReassign(e.target.checked)} />
@@ -263,7 +289,7 @@ export function InterviewListWizard() {
                   <p className="mb-3 text-xs text-muted-foreground">Not changed unless ticked.</p>
                   <List
                     head={["Name", "Role", "Mobile", "Interviewer now", "1:1 time in file"]}
-                    rows={plan.otherInterviewer.map((p) => [p.candidate.name, <RoleTag key="r" role={p.candidate.role} />, p.row.phone, p.candidate.interviewer_name ?? "—", when(p.row.when)])}
+                    rows={plan.otherInterviewer.map((p) => [nameCell(p), <RoleTag key="r" role={p.candidate.role} />, p.candidate.primary_phone ?? "—", p.candidate.interviewer_name ?? "—", when(p.row.when)])}
                     empty="None."
                   />
                 </TabsContent>
@@ -282,32 +308,21 @@ export function InterviewListWizard() {
                 <TabsContent value="already">
                   <List
                     head={["Name", "Role", "Mobile", "1:1 time"]}
-                    rows={plan.already.map((p) => [p.candidate.name, <RoleTag key="r" role={p.candidate.role} />, p.row.phone, when(p.row.when ?? p.candidate.interview_at)])}
+                    rows={plan.already.map((p) => [nameCell(p), <RoleTag key="r" role={p.candidate.role} />, p.candidate.primary_phone ?? "—", when(p.row.when ?? p.candidate.interview_at)])}
                     empty="None."
                   />
                 </TabsContent>
                 <TabsContent value="further">
                   <p className="mb-3 text-xs text-muted-foreground">Already past {loaded.oneToOne.name}, so they&apos;re not moved back.</p>
-                  <List head={["Name", "Role", "Mobile", "Stage now"]} rows={plan.further.map((p) => [p.candidate.name, <RoleTag key="r" role={p.candidate.role} />, p.row.phone, p.candidate.stage_name])} empty="None." />
+                  <List head={["Name", "Role", "Mobile", "Stage now"]} rows={plan.further.map((p) => [nameCell(p), <RoleTag key="r" role={p.candidate.role} />, p.candidate.primary_phone ?? "—", p.candidate.stage_name])} empty="None." />
                 </TabsContent>
-                {people && people.sameName.length > 0 && (
-                  <TabsContent value="same">
-                    <p className="mb-3 text-sm text-muted-foreground">
-                      Mobile not in the tracker, but the <b>same name</b> is already in {addRole}: usually the same person with another number. Not added unless ticked; check them and move the existing person by hand.
-                    </p>
-                    <label className="mb-3 flex items-center gap-2 text-sm font-medium">
-                      <input type="checkbox" className="size-4 accent-[#1f4d36]" checked={includeSameName} onChange={(e) => setIncludeSameName(e.target.checked)} />
-                      Add these {people.sameName.length} as new people anyway
-                    </label>
-                    <List
-                      head={["Name", "Mobile in file", "Already in tracker"]}
-                      rows={people.sameName.map((x) => [x.row.name ?? "—", x.row.phone, x.matches.map((m) => `${m.primary_phone ?? "no mobile"} · ${m.stage_name}`).join(", ")])}
-                      empty="None."
-                    />
-                  </TabsContent>
-                )}
                 <TabsContent value="notfound">
-                  <List head={["Row", "Name", "Mobile"]} rows={(people ? people.noName : plan.notFound).map((r) => [r.rowNumber, r.name ?? "—", r.phone])} empty="None." />
+                  <p className="mb-3 text-xs text-muted-foreground">Not found by name, mobile or email.{addNew ? " People can only be added when the file has their name and mobile." : ""}</p>
+                  <List
+                    head={["Row", "Name", "Mobile", "Email", "Why not added"]}
+                    rows={notAddedRows.map((r) => [r.rowNumber, r.name ?? "—", r.phone ?? "—", r.email ?? "—", !addNew ? "Adding is off" : !r.phone ? "No mobile in file" : !r.name ? "No name in file" : "—"])}
+                    empty="None."
+                  />
                 </TabsContent>
                 <TabsContent value="errors">
                   <List head={["Row", "Name", "Problem"]} rows={loaded.data.errors.map((e) => [e.rowNumber, e.name ?? "—", e.message])} empty="None." />
@@ -361,5 +376,14 @@ export function InterviewListWizard() {
         </Card>
       )}
     </div>
+  );
+}
+
+/** Tracker name, plus the name in the file when it was written differently. */
+function nameCell(p: Pair) {
+  return p.row.name && p.row.nameNorm !== p.candidate.name_norm ? (
+    <span>{p.candidate.name} <span className="text-xs text-muted-foreground">(file: {p.row.name})</span></span>
+  ) : (
+    p.candidate.name
   );
 }

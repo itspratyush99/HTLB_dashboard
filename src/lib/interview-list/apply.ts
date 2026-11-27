@@ -6,19 +6,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/naukri/types";
 import type { NewPeoplePlan } from "@/lib/test-results/parse";
-import { toNewInterviewCandidate, type FoundPerson, type ListFile, type ListPlan, type ListRow } from "./parse";
+import { nameKey, toNewInterviewCandidate, type FoundPerson, type ListFile, type ListPlan, type ListRow, type Pair } from "./parse";
 
 const CHUNK = 1000;
 
-export async function findPeopleByPhones(supabase: SupabaseClient, phones: string[]): Promise<FoundPerson[]> {
-  const unique = [...new Set(phones)];
-  const out: FoundPerson[] = [];
-  for (let i = 0; i < Math.max(unique.length, 1); i += CHUNK) {
-    const { data, error } = await supabase.rpc("find_candidates_by_phone", { p_phones: unique.slice(i, i + CHUNK) });
+/** Finds candidates matching any row of the file by name, similar name, mobile or email. */
+export async function findPeopleForList(supabase: SupabaseClient, rows: ListRow[]): Promise<FoundPerson[]> {
+  const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
+  const names = uniq(rows.map((r) => r.nameNorm));
+  const keys = uniq(rows.map((r) => nameKey(r.nameNorm)));
+  const phones = uniq(rows.map((r) => r.phone));
+  const emails = uniq(rows.map((r) => r.emailNorm));
+  const out = new Map<string, FoundPerson>();
+  const n = Math.max(names.length, keys.length, phones.length, emails.length, 1);
+  for (let i = 0; i < n; i += CHUNK) {
+    const { data, error } = await supabase.rpc("find_candidates_for_list", {
+      p_names: names.slice(i, i + CHUNK),
+      p_name_keys: keys.slice(i, i + CHUNK),
+      p_phones: phones.slice(i, i + CHUNK),
+      p_emails: emails.slice(i, i + CHUNK),
+    });
     if (error) throw new Error(`Couldn't look up candidates: ${error.message}`);
-    out.push(...((data ?? []) as FoundPerson[]));
+    for (const c of (data ?? []) as FoundPerson[]) out.set(c.id, c);
   }
-  return out;
+  return [...out.values()];
 }
 
 export interface ListApplyResult {
@@ -40,6 +51,7 @@ export async function applyInterviewList(
     oneToOne: { id: number; name: string };
     reassign: boolean; // move people who are with another interviewer
     markRescheduled: boolean; // booking time changed → mark Rescheduled
+    includeSimilar: boolean; // similar-name matches were ticked
     add: { role: Role; people: NewPeoplePlan<ListRow> } | null;
   },
 ): Promise<ListApplyResult> {
@@ -102,11 +114,11 @@ export async function applyInterviewList(
     failed = e instanceof Error ? e.message : String(e);
   }
 
-  const person = (p: { row: ListRow; candidate: FoundPerson }) => ({
-    id: p.candidate.id, name: p.candidate.name, role: p.candidate.role, phone: p.row.phone, stage: p.candidate.stage_name,
+  const person = (p: Pair) => ({
+    id: p.candidate.id, name: p.candidate.name, file_name: p.row.name, matched_by: p.matchedBy, role: p.candidate.role, phone: p.row.phone ?? p.candidate.primary_phone, stage: p.candidate.stage_name,
     interviewer: p.candidate.interviewer_name, when: p.row.when, old_when: p.candidate.interview_at,
   });
-  const notAdded = add ? plan.notFound.length - add.people.toAdd.length : plan.notFound.length;
+  const notAdded = (add ? plan.notFound.length - add.people.toAdd.length : plan.notFound.length) + plan.ambiguous.length + (args.includeSimilar ? 0 : plan.similar.length);
   await supabase
     .from("uploads")
     .update({
@@ -127,10 +139,13 @@ export async function applyInterviewList(
         other_interviewer: plan.otherInterviewer.map(person),
         already: plan.already.map(person),
         further: plan.further.map(person),
+        similar: plan.similar.map(person),
+        include_similar: args.includeSimilar,
+        ambiguous: plan.ambiguous.map((a) => ({ name: a.row.name, phone: a.row.phone, existing: a.matches.map((m) => ({ id: m.id, phone: m.primary_phone, stage: `${m.role} · ${m.stage_name}` })) })),
         time_changed: plan.timeChanged.map(person),
         added: (add?.people.toAdd ?? []).map((r) => ({ name: r.name, phone: r.phone, role: add?.role, when: r.when })),
         same_name: (add?.people.sameName ?? []).map((s) => ({ name: s.row.name, phone: s.row.phone, existing: s.matches.map((m) => ({ id: m.id, phone: m.primary_phone, stage: m.stage_name })) })),
-        not_found: (add ? add.people.noName : plan.notFound).map((r) => ({ row: r.rowNumber, name: r.name, phone: r.phone })),
+        not_found: plan.notFound.filter((r) => !add || !add.people.toAdd.includes(r)).map((r) => ({ row: r.rowNumber, name: r.name, phone: r.phone, reason: !r.phone ? "no mobile in file" : !r.name ? "no name" : add ? "not added" : "not in tracker" })),
         duplicates_in_file: file.duplicatesInFile,
       },
     })
