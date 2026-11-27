@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   UserRound,
   Users,
+  UsersRound,
   X,
 } from "lucide-react";
 import { logout } from "@/lib/logout";
@@ -34,6 +35,7 @@ import {
 
 /** Main navigation, in the order from the brief. */
 const NAV: { href: string; label: string; icon: typeof Users; fullOnly?: boolean }[] = [
+  { href: "/all", label: "All", icon: UsersRound },
   { href: "/zbm", label: "ZBM", icon: Users },
   { href: "/hos", label: "HOS", icon: UserRound },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
