@@ -44,7 +44,7 @@ The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business M
    - **Region:** **South Asia (Mumbai)**.
 3. Click **Create new project** and wait 1–2 minutes.
 
-### 1.2 Create the database (13 SQL files, in order)
+### 1.2 Create the database (14 SQL files, in order)
 The files are in `supabase/migrations/`. For **each file, in this order**:
 1. Open **SQL Editor → New query**.
 2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
@@ -65,8 +65,9 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 11 | `0011_interviewer_list_upload.sql` | Interviewer-list upload and 1:1 dates |
 | 12 | `0012_interviewer_list_name_match.sql` | Interviewer list: match by name, mobile or email |
 | 13 | `0013_all_tab.sql` | The **All** tab (ZBM + HOS together) |
+| 14 | `0014_add_candidate_manually.sql` | **Add candidate** by hand |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10, 11, 12 and 13. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10, 11, 12, 13 and 14. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -125,6 +126,15 @@ Whenever you receive a new version:
 1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
+
+### Adding candidates by hand (if you already run 0013)
+1. Run **`0014_add_candidate_manually.sql`** in the SQL Editor. No data changes.
+2. Merge the change on GitHub.
+
+**Add candidate** (All / ZBM / HOS tabs, admins and team members): only the **name** is required (and the role in the All tab). Optional: mobile, email, company, designation, experience, CTC, city, notice period, stage (+ Shortlisted tag, or interviewer and 1:1 time for 1:1 Aligned), and under *More details*: other mobile, preferred locations, home town, gender, degrees, resume headline, profile link, notes.
+- Before saving, it checks for someone with the same name, mobile or email in that role and shows them; **Add anyway** if it's a different person.
+- Hand-added people show an **Added by hand** badge, and appear in the Activity Log ("Added by hand" filter) and their history.
+- If they later come in a Naukri file (same role + mobile), the upload fills in their missing details instead of adding them twice.
 
 ### Adding the All tab (if you already run 0012)
 1. Run **`0013_all_tab.sql`** in the SQL Editor. It only updates the list functions; no data changes.
@@ -465,7 +475,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0013: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0014: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions

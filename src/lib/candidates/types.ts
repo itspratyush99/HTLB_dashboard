@@ -47,7 +47,7 @@ export interface CandidateRow {
   interviewer_name: string | null;
   interviewer_color: string | null;
   shortlist_tag_id: number | null;
-  source?: "naukri" | "test_file" | "interview_file"; // added from a test / interviewer file: details pending Naukri
+  source?: "naukri" | "test_file" | "interview_file" | "manual"; // added from a test / interviewer file: details pending Naukri
   interview_at?: string | null; // 1:1 date/time from a booking file
   rescheduled?: boolean; // 1:1 interview rescheduled (only in 1:1 Aligned)
   rescheduled_at?: string | null;

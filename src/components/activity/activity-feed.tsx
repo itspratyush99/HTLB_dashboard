@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CalendarClock, ChevronDown, ChevronRight, Download, Loader2, Settings, Tag as TagIcon, Trash2, Upload, UserRound } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, ChevronDown, ChevronRight, Download, Loader2, Settings, Tag as TagIcon, Trash2, Upload, UserRound, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/dates";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { CandidateDrawer } from "@/components/candidates/candidate-drawer";
 import type { Viewer } from "@/lib/viewer";
 
-type Action = "stage_change" | "interviewer_change" | "tag_change" | "reschedule" | "upload" | "export" | "settings_change" | "candidates_deleted";
+type Action = "stage_change" | "interviewer_change" | "tag_change" | "reschedule" | "candidate_added" | "upload" | "export" | "settings_change" | "candidates_deleted";
 
 interface Group {
   gkey: string;
@@ -49,6 +49,7 @@ const ACTIONS: [Action, string][] = [
   ["interviewer_change", "Interviewer changes"],
   ["tag_change", "Tag changes"],
   ["reschedule", "Rescheduled 1:1s"],
+  ["candidate_added", "Added by hand"],
   ["upload", "Uploads"],
   ["export", "Exports"],
   ["settings_change", "Settings changes"],
@@ -146,7 +147,7 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
   const d = g.details ?? {};
   const who = <b>{g.user_name ?? "System"}</b>;
   const expandable = (g.bulk_action_id && g.candidate_count > 1) || (g.action === "export" && Array.isArray(d.candidate_ids) && d.candidate_ids.length > 0);
-  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings, candidates_deleted: Trash2, tag_change: TagIcon, reschedule: CalendarClock }[g.action];
+  const Icon = { stage_change: ArrowRightLeft, interviewer_change: UserRound, upload: Upload, export: Download, settings_change: Settings, candidates_deleted: Trash2, tag_change: TagIcon, reschedule: CalendarClock, candidate_added: UserPlus }[g.action];
 
   const singleName =
     g.candidate_count === 1 && g.first_candidate_id ? (
@@ -182,6 +183,8 @@ function Entry({ g, onOpenCandidate }: { g: Group; onOpenCandidate: (id: string)
         {who} changed the tag of {singleName} from <b>{str(d.from_tag) || "No tag"}</b> to <b>{str(d.to_tag) || "No tag"}</b>
       </>
     );
+  } else if (g.action === "candidate_added") {
+    text = <>{who} added {str(d.name) ? <b>{str(d.name)}</b> : singleName} by hand{g.role ? <> to <b>{g.role}</b></> : null} in <b>{str(d.stage)}</b></>;
   } else if (g.action === "reschedule") {
     text = d.rescheduled === false ? (
       <>{who} removed <b>Rescheduled</b> from {singleName}</>
