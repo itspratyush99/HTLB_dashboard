@@ -23,10 +23,11 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do not put code between createServerClient and getUser(): it can cause random logouts.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Do not put code between createServerClient and getClaims(): it can cause random logouts.
+  // getClaims() checks the login token's signature (and refreshes it when it has expired). With Supabase's
+  // JWT signing keys this happens locally, without a round trip to Supabase on every page load.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
 
   const path = request.nextUrl.pathname;
   const isLoginPage = path === "/login";

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -36,32 +37,38 @@ export interface CurrentProfile {
   interviewer_name: string | null;
 }
 
-/** The logged-in team member's profile, or null if not logged in / not an active member. */
-export async function getCurrentProfile(): Promise<CurrentProfile | null> {
+/**
+ * The logged-in team member's profile, or null if not logged in / not an active member.
+ * Wrapped in cache(): the layout and the page share one lookup per page load.
+ */
+export const getCurrentProfile = cache(async (): Promise<CurrentProfile | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // The middleware has already checked the login; getClaims() verifies the token again, normally without
+  // a round trip to Supabase.
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims?.sub;
+  if (!userId) return null;
+  // Profile + interviewer name in one query.
   const first = await supabase
     .from("profiles")
-    .select("id, email, full_name, is_admin, is_active, access, interviewer_id")
-    .eq("id", user.id)
+    .select("id, email, full_name, is_admin, is_active, access, interviewer_id, interviewer:interviewers(name)")
+    .eq("id", userId)
     .maybeSingle();
-  let data = first.data;
+  let data = first.data as (Record<string, unknown> & { is_active?: boolean; access?: string; interviewer_id?: number | null; interviewer?: { name: string } | null }) | null;
   if (first.error) {
     // Before 0007_access_levels_and_delete.sql is run, the access columns don't exist yet.
-    ({ data } = await supabase.from("profiles").select("id, email, full_name, is_admin, is_active").eq("id", user.id).maybeSingle());
+    ({ data } = await supabase.from("profiles").select("id, email, full_name, is_admin, is_active").eq("id", userId).maybeSingle());
   }
   if (!data || !data.is_active) return null;
   const access = (data.access ?? "full") as CurrentProfile["access"];
-  let interviewer_name: string | null = null;
-  if (access === "interviewer" && data.interviewer_id) {
-    const { data: i } = await supabase.from("interviewers").select("name").eq("id", data.interviewer_id).maybeSingle();
-    interviewer_name = i?.name ?? null;
-  }
-  return { ...data, access, interviewer_id: data.interviewer_id ?? null, interviewer_name } as CurrentProfile;
-}
+  const { interviewer, ...rest } = data;
+  return {
+    ...rest,
+    access,
+    interviewer_id: data.interviewer_id ?? null,
+    interviewer_name: access === "interviewer" ? (interviewer?.name ?? null) : null,
+  } as CurrentProfile;
+});
 
 /** What the logged-in person may see and do. Passed from server pages to client components. */
 export type { Viewer } from "@/lib/viewer";

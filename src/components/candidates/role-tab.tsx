@@ -164,14 +164,19 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
   const load = useCallback(async () => {
     const id = ++requestId.current;
     setLoading(true);
-    const { data, error } = await supabase.rpc("search_candidates", {
-      p_role: role,
-      p_filters: cleanFilters(filters),
-      p_sort: sort,
-      p_desc: desc,
-      p_limit: pageSize,
-      p_offset: (page - 1) * pageSize,
-    });
+    // Candidates, tag counts and Rescheduled counts load at the same time.
+    const [{ data, error }, counts, rc] = await Promise.all([
+      supabase.rpc("search_candidates", {
+        p_role: role,
+        p_filters: cleanFilters(filters),
+        p_sort: sort,
+        p_desc: desc,
+        p_limit: pageSize,
+        p_offset: (page - 1) * pageSize,
+      }),
+      viewer.interviewerOnly ? Promise.resolve(null) : supabase.rpc("shortlist_tag_counts", { p_role: role }),
+      supabase.rpc("rescheduled_counts", { p_role: role }),
+    ]);
     if (id !== requestId.current) return; // a newer request has started
     setLoading(false);
     if (error) {
@@ -181,11 +186,7 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
     }
     setError(null);
     setResult(data as SearchResult);
-    if (!viewer.interviewerOnly) {
-      const counts = await supabase.rpc("shortlist_tag_counts", { p_role: role });
-      if (!counts.error) setTagCounts(counts.data as typeof tagCounts);
-    }
-    const rc = await supabase.rpc("rescheduled_counts", { p_role: role });
+    if (counts && !counts.error) setTagCounts(counts.data as typeof tagCounts);
     if (!rc.error) setReschedCounts((rc.data as ReschedCount[]) ?? []);
   }, [supabase, role, filters, sort, desc, page, pageSize, viewer.interviewerOnly]);
 
