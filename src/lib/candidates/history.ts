@@ -2,7 +2,7 @@
 
 export interface HistoryEvent {
   at: string;
-  kind: "added" | "stage_change" | "interviewer_change" | "export" | "tag_change" | "reschedule";
+  kind: "added" | "stage_change" | "interviewer_change" | "export" | "tag_change" | "reschedule" | "candidate_added";
   user_name: string | null;
   details: Record<string, unknown> | null;
   bulk_action_id: string | null;
@@ -19,6 +19,8 @@ export function describeEvent(e: HistoryEvent): { title: string; note?: string }
         title: `Added in ${s(d.stage) ?? "Shortlisted"}`,
         note: s(d.file_name) ? `From upload ${d.file_name}` : undefined,
       };
+    case "candidate_added":
+      return { title: `Added by hand in ${s(d.stage) ?? "Shortlisted"}` };
     case "tag_change":
       return {
         title: `Tag ${s(d.from_tag) ?? "No tag"} → ${s(d.to_tag) ?? "No tag"}`,

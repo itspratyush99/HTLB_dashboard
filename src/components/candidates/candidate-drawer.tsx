@@ -59,7 +59,9 @@ export function CandidateDrawer({
     if (c.error || h.error) return setError((c.error ?? h.error)!.message);
     setError(null);
     setDetail(c.data as Detail);
-    setHistory(h.data as HistoryEvent[]);
+    const events = h.data as HistoryEvent[];
+    // Added by hand: show that entry instead of the generic "Added" one.
+    setHistory(events.some((e) => e.kind === "candidate_added") ? events.filter((e) => e.kind !== "added") : events);
   }, [supabase, candidateId]);
 
   useEffect(() => {
@@ -187,8 +189,10 @@ export function CandidateDrawer({
                 <Fields title="Screening answers" rows={Object.entries(detail.screening).map(([q, a]) => [q, a.t])} wideLabel />
               )}
               <Fields
-                title="From Naukri"
+                title={!detail.source || detail.source === "naukri" ? "From Naukri" : "Record"}
                 rows={[
+                  ["Notes / comments", (detail as { naukri_comments?: string | null }).naukri_comments ?? null],
+                  ["Source", detail.source && detail.source !== "naukri" ? sourceLabel(detail.source) : null],
                   ["Job title", detail.job_title],
                   ["Date of application", detail.applied_on ? formatDate(detail.applied_on) : null],
                   ["Naukri pipeline stage", detail.naukri_pipeline_stage],

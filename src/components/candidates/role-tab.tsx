@@ -8,6 +8,7 @@ import {
   ArrowRightLeft,
   ArrowUp,
   ArrowUpDown,
+  UserPlus,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
@@ -47,6 +48,7 @@ import { Input } from "@/components/ui/input";
 import { CandidateDrawer } from "./candidate-drawer";
 import { BASE_COLUMNS, ROLE_COLUMN, screeningColumns, type CellContext, type Column } from "./columns";
 import { ExportDialog } from "./export-dialog";
+import { AddCandidateDialog } from "./add-candidate-dialog";
 import { FilterPanel } from "./filter-panel";
 import { DeleteDialog } from "./delete-dialog";
 import { TagDialog } from "./tag-dialog";
@@ -98,6 +100,7 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   // Move dialog: which candidates, and whether they came from the selection or an export.
   const [move, setMove] = useState<{ ids: string[]; heading: string; source: "selection" | "export" } | null>(null);
   const [interviewerOpen, setInterviewerOpen] = useState(false);
@@ -286,9 +289,14 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
           </p>
         </div>
         {!viewer.interviewerOnly && (
-          <Button asChild variant="outline">
-            <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setAddOpen(true)}>
+              <UserPlus /> Add candidate
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/uploads/new"><Upload /> Upload Naukri file</Link>
+            </Button>
+          </div>
         )}
       </div>
 
@@ -632,6 +640,20 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
         }}
       />
       <InterviewerDialog open={interviewerOpen} onOpenChange={setInterviewerOpen} ids={[...selected]} interviewers={interviewers} onChanged={load} />
+      {!viewer.interviewerOnly && (
+        <AddCandidateDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          role={role}
+          stages={stages}
+          interviewers={interviewers}
+          tags={tags}
+          onAdded={(id) => {
+            load();
+            setDrawerId(id);
+          }}
+        />
+      )}
       <TagDialog
         open={!!tagDialog}
         onOpenChange={(o) => !o && setTagDialog(null)}
