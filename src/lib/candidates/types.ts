@@ -2,6 +2,10 @@
 import type { Role, ScreeningAnswer } from "@/lib/naukri/types";
 
 export type { Role };
+/** A candidate tab: one role, or "ALL" for ZBM + HOS together. */
+export type RoleScope = Role | "ALL";
+/** The p_role value for the database: null means both roles. */
+export const roleParam = (r: RoleScope): Role | null => (r === "ALL" ? null : r);
 
 /** One row as returned by the search_candidates database function. */
 export interface CandidateRow {

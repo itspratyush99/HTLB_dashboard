@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Loader2 } from "
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Filters } from "@/lib/candidates/filters";
-import type { Role, ShortlistTag, Stage } from "@/lib/candidates/types";
+import { roleParam, type RoleScope, type ShortlistTag, type Stage } from "@/lib/candidates/types";
 import { nextTag } from "./tag-dialog";
 import {
   buildBulkSenderCsv,
@@ -38,7 +38,7 @@ export function ExportDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role: Role;
+  role: RoleScope;
   selectedIds: string[];
   filters: Filters;
   stages: Stage[];
@@ -81,7 +81,7 @@ export function ExportDialog({
   );
   const fileName = loaded
     ? bulkSenderFileName(
-        role,
+        role === "ALL" ? "All" : role,
         loaded.candidates.map((c) => c.stage_name),
         new Date(),
         loaded.candidates.map((c) => (c.stage_id === shortlistedStageId ? c.tag_name ?? "No tag" : null)),
@@ -110,7 +110,7 @@ export function ExportDialog({
     const stageFilter = (filters.stage_ids ?? []).map((id) => stages.find((s) => s.id === id)?.name).filter(Boolean);
     const { error } = await supabase.from("activity_log").insert({
       action: "export",
-      role,
+      role: roleParam(role),
       details: {
         file_name: fileName,
         exported: preview.includedIds.length,
@@ -135,7 +135,7 @@ export function ExportDialog({
         <DialogHeader>
           <DialogTitle>Export for Bulk Sender</DialogTitle>
           <DialogDescription>
-            {selectedIds.length.toLocaleString("en-IN")} selected {role} candidate{selectedIds.length === 1 ? "" : "s"}. Format: Name, Mobile
+            {selectedIds.length.toLocaleString("en-IN")} selected {role === "ALL" ? "" : `${role} `}candidate{selectedIds.length === 1 ? "" : "s"}. Format: Name, Mobile
             Number (91 + 10 digits), Source = ORGANIC, Tags, booking_at.
           </DialogDescription>
         </DialogHeader>

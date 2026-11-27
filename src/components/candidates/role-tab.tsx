@@ -26,7 +26,8 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cleanFilters, decodeFilters, describeFilters, encodeFilters, removeFilter, type Filters } from "@/lib/candidates/filters";
-import type { CandidateRow, FilterOptions, Interviewer, Role, SearchResult, ShortlistTag, Stage } from "@/lib/candidates/types";
+import { roleParam, type CandidateRow, type FilterOptions, type Interviewer, type RoleScope, type SearchResult, type ShortlistTag, type Stage } from "@/lib/candidates/types";
+import { ROLE_COLORS } from "@/lib/brand";
 import { RESCHEDULED_COLOR, sourceLabel } from "@/lib/candidates/rescheduled";
 import { formatInterviewTime } from "@/lib/interview-list/parse";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { CandidateDrawer } from "./candidate-drawer";
-import { BASE_COLUMNS, screeningColumns, type CellContext, type Column } from "./columns";
+import { BASE_COLUMNS, ROLE_COLUMN, screeningColumns, type CellContext, type Column } from "./columns";
 import { ExportDialog } from "./export-dialog";
 import { FilterPanel } from "./filter-panel";
 import { DeleteDialog } from "./delete-dialog";
@@ -53,10 +54,11 @@ import { InterviewerDialog, MoveDialog } from "./move-dialog";
 import type { Viewer } from "@/lib/viewer";
 
 const PAGE_SIZES = [25, 50, 100, 200];
-const ROLE_NAMES: Record<Role, string> = { ZBM: "Zonal Business Manager", HOS: "Head of States" };
+const ROLE_NAMES: Record<RoleScope, string> = { ZBM: "Zonal Business Manager", HOS: "Head of States", ALL: "ZBM + HOS" };
+const roleLabel = (r: RoleScope) => (r === "ALL" ? "All" : r);
 
 interface Props {
-  role: Role;
+  role: RoleScope;
   viewer: Viewer;
   tags: ShortlistTag[];
   stages: Stage[];
@@ -111,8 +113,10 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
   const columns = useMemo<Column[]>(() => {
     const [name, stage, interviewer, ...rest] = BASE_COLUMNS;
     const createdIdx = rest.findIndex((c) => c.key === "applied_on");
-    return [name, stage, interviewer, ...rest.slice(0, createdIdx), ...screeningColumns(options.questions), ...rest.slice(createdIdx)];
-  }, [options.questions]);
+    // The All tab also shows which role each candidate applied for.
+    const roleCol: Column[] = role === "ALL" ? [ROLE_COLUMN] : [];
+    return [name, ...roleCol, stage, interviewer, ...rest.slice(0, createdIdx), ...screeningColumns(options.questions), ...rest.slice(createdIdx)];
+  }, [options.questions, role]);
   const storageKey = `ct.columns.${role}`;
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(columns.filter((c) => !c.defaultVisible).map((c) => c.key)));
   useEffect(() => {
@@ -167,15 +171,15 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
     // Candidates, tag counts and Rescheduled counts load at the same time.
     const [{ data, error }, counts, rc] = await Promise.all([
       supabase.rpc("search_candidates", {
-        p_role: role,
+        p_role: roleParam(role),
         p_filters: cleanFilters(filters),
         p_sort: sort,
         p_desc: desc,
         p_limit: pageSize,
         p_offset: (page - 1) * pageSize,
       }),
-      viewer.interviewerOnly ? Promise.resolve(null) : supabase.rpc("shortlist_tag_counts", { p_role: role }),
-      supabase.rpc("rescheduled_counts", { p_role: role }),
+      viewer.interviewerOnly ? Promise.resolve(null) : supabase.rpc("shortlist_tag_counts", { p_role: roleParam(role) }),
+      supabase.rpc("rescheduled_counts", { p_role: roleParam(role) }),
     ]);
     if (id !== requestId.current) return; // a newer request has started
     setLoading(false);
@@ -252,7 +256,7 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
 
   async function selectAllFiltered() {
     setSelectingAll(true);
-    const { data, error } = await supabase.rpc("candidate_ids", { p_role: role, p_filters: cleanFilters(filters) });
+    const { data, error } = await supabase.rpc("candidate_ids", { p_role: roleParam(role), p_filters: cleanFilters(filters) });
     setSelectingAll(false);
     if (error) return toast.error("Couldn't select all", { description: error.message });
     setSelected((s) => new Set([...s, ...((data as string[]) ?? [])]));
@@ -271,7 +275,7 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
       {/* Title row */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-[32px] sm:leading-tight">{role} candidates</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-[32px] sm:leading-tight">{roleLabel(role)} candidates</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {ROLE_NAMES[role]} ·{" "}
             {result ? (
@@ -491,11 +495,11 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
           </label>
         )}
         {rows.map((r) => (
-          <MobileCard key={r.id} row={r} selected={selected.has(r.id)} onToggle={(on) => toggleRow(r.id, on)} onOpen={() => setDrawerId(r.id)} />
+          <MobileCard key={r.id} row={r} showRole={role === "ALL"} selected={selected.has(r.id)} onToggle={(on) => toggleRow(r.id, on)} onOpen={() => setDrawerId(r.id)} />
         ))}
         {!loading && !rows.length && (
           <p className="glass rounded-2xl px-4 py-10 text-center text-sm text-muted-foreground">
-            {error ? `Couldn't load: ${error}` : roleTotal === 0 ? `No ${role} candidates yet.` : "No candidates match these filters."}
+            {error ? `Couldn't load: ${error}` : roleTotal === 0 ? `No ${role === "ALL" ? "" : `${role} `}candidates yet.` : "No candidates match these filters."}
           </p>
         )}
       </div>
@@ -533,7 +537,7 @@ export function RoleTab({ role, viewer, tags, stages, interviewers, options }: P
                     {error
                       ? `Couldn't load: ${error}`
                       : roleTotal === 0
-                        ? <>No {role} candidates yet. <Link className="text-primary hover:underline" href="/uploads/new">Upload a Naukri file</Link> to add some.</>
+                        ? <>No {role === "ALL" ? "" : `${role} `}candidates yet. <Link className="text-primary hover:underline" href="/uploads/new">Upload a Naukri file</Link> to add some.</>
                         : "No candidates match these filters."}
                   </td>
                 </tr>
@@ -693,7 +697,7 @@ function TableRow({
 }
 
 /** Phone layout of one candidate: tap the card to select, tap the name to open details. */
-function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow; selected: boolean; onToggle: (on: boolean) => void; onOpen: () => void }) {
+function MobileCard({ row: r, showRole, selected, onToggle, onOpen }: { row: CandidateRow; showRole?: boolean; selected: boolean; onToggle: (on: boolean) => void; onOpen: () => void }) {
   return (
     <div
       className={cn("glass flex gap-3 rounded-2xl p-3 transition-colors", selected && "border-gold/50 bg-gold-soft/80")}
@@ -713,6 +717,7 @@ function MobileCard({ row: r, selected, onToggle, onOpen }: { row: CandidateRow;
           )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {showRole && <Badge color={ROLE_COLORS[r.role]}>{r.role}</Badge>}
           <Badge color={r.stage_color}>{r.stage_name}</Badge>
           {r.tag_name && <Badge color={r.tag_color ?? undefined}>{r.tag_name}</Badge>}
           {r.rescheduled && <Badge color={RESCHEDULED_COLOR}>Rescheduled</Badge>}

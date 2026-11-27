@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { createClient, getCurrentProfile, toViewer } from "@/lib/supabase/server";
-import type { FilterOptions, Interviewer, Role, ShortlistTag, Stage } from "@/lib/candidates/types";
+import { roleParam, type FilterOptions, type Interviewer, type RoleScope, type ShortlistTag, type Stage } from "@/lib/candidates/types";
 import { RoleTab } from "./role-tab";
 
 const EMPTY_OPTIONS: FilterOptions = {
@@ -15,20 +15,20 @@ const EMPTY_OPTIONS: FilterOptions = {
 };
 
 /** Server part of a role tab: loads stages, interviewers and filter pick-lists, then hands over to the table. */
-export async function RolePage({ role }: { role: Role }) {
+export async function RolePage({ role }: { role: RoleScope }) {
   const supabase = await createClient();
   const [profile, stages, interviewers, options, tags] = await Promise.all([
     getCurrentProfile(),
     supabase.from("stages").select("id, name, color, position, requires_interviewer, is_default").order("position"),
     supabase.from("interviewers").select("id, name, color, is_active").order("name"),
-    supabase.rpc("candidate_filter_options", { p_role: role }),
+    supabase.rpc("candidate_filter_options", { p_role: roleParam(role) }),
     supabase.from("shortlist_tags").select("id, name, color, position").order("position"),
   ]);
 
   if (options.error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-        Couldn&apos;t load the {role} tab: {options.error.message}
+        Couldn&apos;t load the {role === "ALL" ? "All" : role} tab: {options.error.message}
         {/function .* does not exist/i.test(options.error.message) && (
           <p className="mt-2">
             It looks like <b>0003_candidate_search.sql</b> hasn&apos;t been run yet. Run it in Supabase → SQL Editor, then reload.

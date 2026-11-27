@@ -9,6 +9,7 @@ import type { CandidateRow } from "@/lib/candidates/types";
 import { Badge } from "@/components/ui/badge";
 import { RESCHEDULED_COLOR, sourceLabel } from "@/lib/candidates/rescheduled";
 import { formatInterviewTime } from "@/lib/interview-list/parse";
+import { ROLE_COLORS } from "@/lib/brand";
 
 /** Things a cell can do, e.g. open the candidate detail panel. */
 export interface CellContext {
@@ -30,6 +31,16 @@ const text = (v: string | number | null | undefined) => (v === null || v === und
 function Dash() {
   return <span className="text-muted-foreground/60">—</span>;
 }
+
+/** Role column, shown in the All tab. */
+export const ROLE_COLUMN: Column = {
+  key: "role",
+  label: "Role",
+  sort: "role",
+  defaultVisible: true,
+  className: "whitespace-nowrap",
+  render: (r) => <Badge color={ROLE_COLORS[r.role]}>{r.role}</Badge>,
+};
 
 export const BASE_COLUMNS: Column[] = [
   {

@@ -44,7 +44,7 @@ The internal recruitment panel of **HTLB Systems** for hiring **Zonal Business M
    - **Region:** **South Asia (Mumbai)**.
 3. Click **Create new project** and wait 1–2 minutes.
 
-### 1.2 Create the database (12 SQL files, in order)
+### 1.2 Create the database (13 SQL files, in order)
 The files are in `supabase/migrations/`. For **each file, in this order**:
 1. Open **SQL Editor → New query**.
 2. Open the file in Notepad or TextEdit, select all, copy, and paste it into the editor.
@@ -64,8 +64,9 @@ The files are in `supabase/migrations/`. For **each file, in this order**:
 | 10 | `0010_add_from_test_file.sql` | Add people from the test file who aren't in the tracker |
 | 11 | `0011_interviewer_list_upload.sql` | Interviewer-list upload and 1:1 dates |
 | 12 | `0012_interviewer_list_name_match.sql` | Interviewer list: match by name, mobile or email |
+| 13 | `0013_all_tab.sql` | The **All** tab (ZBM + HOS together) |
 
-> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10, 11 and 12. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
+> Supabase may warn about **"destructive operations"** on files 2, 4, 6, 7, 8, 9, 10, 11, 12 and 13. That's expected: they replace a helper column or function with a newer version. **Run query** is safe, and no candidate data is removed.
 >
 > Run each file **once**. Running one twice can give "already exists" errors, which are harmless.
 
@@ -124,6 +125,12 @@ Whenever you receive a new version:
 1. **SQL first.** If the new version has a new file in `supabase/migrations/`, run **only that new file** in Supabase → SQL Editor.
 2. In GitHub, click **Add file → Upload files**. Drag in everything inside the new folder (same exclusions as above), then click **Commit changes**.
 3. Vercel redeploys automatically within about 2 minutes. Watch **Deployments** until it says **Ready**.
+
+### Adding the All tab (if you already run 0012)
+1. Run **`0013_all_tab.sql`** in the SQL Editor. It only updates the list functions; no data changes.
+2. Merge the change on GitHub (or upload the files). The **All** tab appears first in the menu.
+
+The All tab works exactly like ZBM and HOS (search, filters, Shortlisted tags, Rescheduled, export, bulk moves, delete), with a **Role** column. Exports from it are named `All_…csv`. Interviewer logins see only their own candidates there too.
 
 ### Name matching for the interviewer list (if you already run 0011)
 1. Run **`0012_interviewer_list_name_match.sql`** in the SQL Editor. It only adds a lookup; nothing changes.
@@ -458,7 +465,7 @@ No data is lost. Free projects get no automatic backups, so consider Supabase Pr
 **Brand:** colours and names are in `src/lib/brand.ts` and `src/app/globals.css`. The logos are in `public/brand/`, and the app icons in `src/app/icon.png`, `apple-icon.png` and `favicon.ico`.
 
 ```
-supabase/migrations/        SQL files 0001–0012: run in order (one new file per release)
+supabase/migrations/        SQL files 0001–0013: run in order (one new file per release)
 src/app/login/              sign-in page
 src/app/(app)/              logged-in pages: zbm, hos, dashboard, analytics, uploads, activity, settings
 src/app/(app)/settings/     settings page + server-only team-user actions
